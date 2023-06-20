@@ -38,6 +38,23 @@ static void display_version()
     printf("v%d.%d.%d\n", NF_VERSION_MAJOR, NF_VERSION_MINOR, NF_VERSION_PATCH);
 }
 
+static void run(FILE* fp)
+{
+
+    nf::Lexer lexer;
+    nf::Parser parser;
+    lexer.push_input(fp);
+    nf::Token token;
+    do {
+        token = lexer.lex();
+        bool succ = parser.parse(token, nullptr);
+        if (!succ) {
+            exit(1);
+        }
+
+    } while (token.type != NF_TK_EOF);
+}
+
 int main(int argc, char* argv[])
 {
     auto cmd_args = parse_command_args(argc, argv);
@@ -62,7 +79,10 @@ int main(int argc, char* argv[])
             token = lexer.lex();
             token_dump(&token, stdout);
         } while (token.type != NF_TK_EOF);
+        return 0;
     }
+
+    run(stdin);
 
     return 0;
 }

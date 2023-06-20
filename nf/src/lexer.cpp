@@ -2,13 +2,18 @@
 #include "vm.h"
 
 extern "C" {
-void nf_error(void* p, void*, const char*) { }
+
+void nf_error(void* p, void*, const char* msg) { fprintf(stderr, "%s\n", msg); }
 }
 
 namespace nf {
 
 static const char* token_type_str(int type)
 {
+    if (type < 256) {
+        static char type_name[2] = { (char)type, 0 };
+        return type_name;
+    }
 
 #define CASE(name)                                                             \
     case NF_TK_##name:                                                         \
@@ -21,6 +26,8 @@ static const char* token_type_str(int type)
         CASE(DOUBLE)
         CASE(STRING)
         CASE(SYMBOL)
+        CASE(PACKAGE)
+        CASE(PRINT)
     }
 
 #undef CASE

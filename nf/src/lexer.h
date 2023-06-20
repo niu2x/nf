@@ -72,23 +72,15 @@ public:
 protected:
     virtual bool _parse(const Token& token, void* userdata)
     {
-        error_msg_ = "";
         auto ret
             = nf_push_parse(state_, token.type, &token.value, this, userdata);
-        if (error_msg_.size() > 0) {
-            fprintf(stderr, "error_msg: %s\n", error_msg_.c_str());
-            return false;
-        }
         if (ret == 1)
             return false;
         return true;
     }
 
 private:
-    void error(const char* msg) { error_msg_ += msg; }
     nf_pstate* state_;
-    std::string error_msg_;
-    friend void nf_error(void* p, void*, const char*);
 };
 
 void token_dump(const Token* self, FILE* fp);

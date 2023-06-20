@@ -26,9 +26,18 @@ DOUBLE  [-+]?[0-9]*.[0-9]+([eE][-+]?[0-9]+)?
 STRING	\"([^\\"]|\.)*\"
 SYMBOL	[A-Za-z_]+[A-Za-z0-9_]* 
 
+
 %x STRING
 
 %%
+
+PRINT {return NF_TK_PRINT;}
+package {return NF_TK_PACKAGE;}
+
+; {return ';';}
+\. {return '.';}
+\) {return ')';}
+\( {return '(';}
 
 {SYMBOL} {
 	yylval->constant_index = main_vm_insert_constant_string(yytext);
@@ -91,6 +100,7 @@ SYMBOL	[A-Za-z_]+[A-Za-z0-9_]*
 \n {}
 \r {}
 \t {}
+" " {}
 
 <<EOF>> {return NF_TK_EOF;}
 
