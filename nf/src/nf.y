@@ -5,6 +5,10 @@
 
 %token NF_TK_EOF
 %token NF_TK_UNKNOWN
+%token NF_TK_INTEGER
+%token NF_TK_DOUBLE
+%token NF_TK_STRING
+
 
 %{
 

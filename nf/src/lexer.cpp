@@ -15,11 +15,15 @@ static const char* token_type_str(int type)
 
     switch (type) {
         CASE(EOF)
+        CASE(UNKNOWN)
+        CASE(INTEGER)
+        CASE(DOUBLE)
+        CASE(STRING)
     }
 
 #undef CASE
 
-    return "unknown";
+    return "TODO:unknown";
 }
 
 void token_dump(const Token* self, FILE* fp)
