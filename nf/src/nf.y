@@ -3,13 +3,16 @@
 %define api.pure
 %parse-param {void* nf_parser} {void *userdata}
 
-%token T_EOF
+%token NF_TK_EOF
+%token NF_TK_UNKNOWN
 
 %{
 
 #include <stdio.h>
 #include <stdint.h>
 //#define LISP ((lisp_t*)userdata)
+
+extern void nf_error(void* p, void*, const char*);
 
 %}
 
@@ -18,6 +21,6 @@
 
 %%
 
-start: T_EOF
+start: NF_TK_EOF
 
 %%

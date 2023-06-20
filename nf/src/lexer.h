@@ -91,6 +91,8 @@ private:
     friend void nf_error(void* p, void*, const char*);
 };
 
+void token_dump(const Token* self, FILE* fp);
+
 } // namespace nf
 
 #endif

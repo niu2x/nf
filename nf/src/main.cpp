@@ -12,7 +12,8 @@ static cxxopts::Options build_command_args_parser()
 {
     cxxopts::Options options("nf", "TODO: desc!");
     options.add_options()("v,version", "display version");
-    options.add_options()("h,help", "display version");
+    options.add_options()("h,help", "display help");
+    options.add_options()("only-lexer", "");
     return options;
 }
 
@@ -50,6 +51,17 @@ int main(int argc, char* argv[])
     if (opt_help) {
         std::cout << command_args_parser.help();
         return 0;
+    }
+
+    auto only_lexer = cmd_args["only-lexer"].as<bool>();
+    if (only_lexer) {
+        nf::Lexer lexer;
+        lexer.push_input(stdin);
+        nf::Token token;
+        do {
+            token = lexer.lex();
+            token_dump(&token, stdout);
+        } while (token.type != NF_TK_EOF);
     }
 
     return 0;
