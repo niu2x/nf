@@ -8,9 +8,10 @@ target_sources(${EXE_NAME} PRIVATE ${sources})
 
 configure_file(include/nf/config.h.in include/nf/config.h @ONLY)
 
-find_package(cxxopts REQUIRED)
-target_link_libraries(${EXE_NAME} PRIVATE cxxopts::cxxopts)
-
+if(cxxopts_ROOT)
+    find_package(cxxopts REQUIRED)
+    target_link_libraries(${EXE_NAME} PRIVATE cxxopts::cxxopts)
+endif()
 
 target_include_directories(${EXE_NAME} PRIVATE
     src/
