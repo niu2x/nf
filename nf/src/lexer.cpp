@@ -44,6 +44,14 @@ void token_dump(const Token* self, FILE* fp)
             fprintf(fp, "%lf", d);
             break;
         }
+
+        case NF_TK_SYMBOL:
+        case NF_TK_STRING: {
+            const char* sz = "";
+            VM::main()->lookup_constant(self->value.constant_index, &sz);
+            fprintf(fp, "%s", sz);
+            break;
+        }
     }
 
     fprintf(fp, ")\n");

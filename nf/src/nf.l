@@ -30,7 +30,10 @@ SYMBOL	[A-Za-z_]+[A-Za-z0-9_]*
 
 %%
 
-{SYMBOL} {return NF_TK_SYMBOL;}
+{SYMBOL} {
+	yylval->constant_index = main_vm_insert_constant_string(yytext);
+	return NF_TK_SYMBOL;
+}
 {INTEGER} {
 	int64_t i = atoll(yytext);
 	yylval->constant_index = main_vm_insert_constant_interger(i);
@@ -51,7 +54,7 @@ SYMBOL	[A-Za-z_]+[A-Za-z0-9_]*
 <STRING>\" {
 	BEGIN(INITIAL);
 	strbuf_append_char(strbuf_get(), 0); 
-	printf("NF_TK_STRING %s\n", strbuf_string(strbuf_get(), NULL));
+	yylval->constant_index = main_vm_insert_constant_string(strbuf_string(strbuf_get(), NULL));
 	return NF_TK_STRING;
 }
 

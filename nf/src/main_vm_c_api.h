@@ -9,6 +9,7 @@ extern "C" {
 
 int main_vm_insert_constant_interger(int64_t i);
 int main_vm_insert_constant_double(double d);
+int main_vm_insert_constant_string(const char* sz);
 
 #ifdef __cplusplus
 }

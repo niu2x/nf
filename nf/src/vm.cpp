@@ -1,4 +1,5 @@
 #include "vm.h"
+#include <string.h>
 #include <algorithm>
 
 namespace nf {
@@ -16,11 +17,37 @@ static int ConstantTable_insert(VM::ConstantTable<T>* self, Value&& v)
     return iter - begin;
 }
 
+static int ConstantTable_insert(VM::ConstantStrTable* self, const char* sz)
+{
+    auto begin = self->begin();
+    auto end = self->end();
+
+    auto iter = std::find_if(
+        begin, end, [sz](auto& x) { return strcmp(sz, x->c_str()) == 0; });
+
+    if (iter == end) {
+        auto item = std::make_unique<std::string>(sz);
+        self->push_back(std::move(item));
+        return self->size() - 1;
+    }
+    return iter - begin;
+}
+
 template <class T>
 static bool ConstantTable_lookup(VM::ConstantTable<T>* self, int index, T* out)
 {
     if (index < self->size() && index >= 0) {
         *out = self->at(index);
+        return true;
+    }
+    return false;
+}
+
+static bool ConstantTable_lookup(
+    VM::ConstantStrTable* self, int index, const char** out)
+{
+    if (index < self->size() && index >= 0) {
+        *out = self->at(index)->c_str();
         return true;
     }
     return false;
@@ -46,6 +73,16 @@ bool VM::lookup_constant(int index, int64_t* out)
 bool VM::lookup_constant(int index, double* out)
 {
     return ConstantTable_lookup(&constant_doubles_, index, out);
+}
+
+int VM::insert_constant(const char* sz)
+{
+    return ConstantTable_insert(&constant_strings_, sz);
+}
+
+bool VM::lookup_constant(int index, const char** out)
+{
+    return ConstantTable_lookup(&constant_strings_, index, out);
 }
 
 static VM main_;

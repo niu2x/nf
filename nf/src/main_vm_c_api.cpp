@@ -12,3 +12,8 @@ int main_vm_insert_constant_double(double d)
 {
     return VM::main()->insert_constant(d);
 }
+
+int main_vm_insert_constant_string(const char* sz)
+{
+    return VM::main()->insert_constant(sz);
+}
