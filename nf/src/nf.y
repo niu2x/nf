@@ -8,7 +8,7 @@
 %token NF_TK_INTEGER
 %token NF_TK_DOUBLE
 %token NF_TK_STRING
-
+%token NF_TK_SYMBOL
 
 %{
 
@@ -21,6 +21,7 @@ extern void nf_error(void* p, void*, const char*);
 %}
 
 %union {
+	int constant_index;
 };
 
 %%

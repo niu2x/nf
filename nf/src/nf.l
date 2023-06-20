@@ -5,6 +5,7 @@
 
 	#include "nf_parser.h"
 	#include "strbuf.h"
+	#include "main_vm_c_api.h"
 
 	static strbuf_t* strbuf_get() {
 		static strbuf_t strbuf;
@@ -15,19 +16,32 @@
 		}
 		return &strbuf;
 	} 
+
+	#define yylval ((YYSTYPE *)yyget_extra(yyscanner))
 }
 
 
 INTEGER [-+]?[0-9]+
 DOUBLE  [-+]?[0-9]*.[0-9]+([eE][-+]?[0-9]+)?
 STRING	\"([^\\"]|\.)*\"
+SYMBOL	[A-Za-z_]+[A-Za-z0-9_]* 
 
 %x STRING
 
 %%
 
-{INTEGER} {return NF_TK_INTEGER;}
-{DOUBLE} {return NF_TK_DOUBLE;}
+{SYMBOL} {return NF_TK_SYMBOL;}
+{INTEGER} {
+	int64_t i = atoll(yytext);
+	yylval->constant_index = main_vm_insert_constant_interger(i);
+	return NF_TK_INTEGER;
+}
+
+{DOUBLE} {
+	double d = strtod(yytext, NULL);
+	yylval->constant_index = main_vm_insert_constant_double(d);
+	return NF_TK_DOUBLE;
+}
 
 \" {
 	BEGIN(STRING);
