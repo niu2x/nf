@@ -4,6 +4,8 @@
 
 #include <nf/config.h>
 
+#include "lexer.h"
+
 static void die() { exit(1); }
 
 static cxxopts::Options build_command_args_parser()
