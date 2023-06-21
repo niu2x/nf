@@ -13,4 +13,6 @@ public:
 };
 }
 
+#define NF_INLINE inline
+
 #endif
