@@ -7,6 +7,7 @@
 #include <memory>
 #include <map>
 #include <stack>
+#include <sstream>
 
 #include "utils.h"
 
@@ -32,6 +33,8 @@ public:
     using UniqueConstStrPtr = std::unique_ptr<const std::string>;
     using ConstantStrTable = ConstantTable<UniqueConstStrPtr>;
     using PackagePtr = std::unique_ptr<Package>;
+    using StringStream = std::stringstream;
+    using StringStreamPtr = std::unique_ptr<StringStream>;
 
     VM();
     ~VM();
@@ -46,7 +49,15 @@ public:
     bool lookup_constant(int index, double* out);
     bool lookup_constant(int index, const char** out);
 
-    void push_new_package();
+    void push_package();
+    void pop_package();
+    Package* current_package() { return loading_packages_.top().get(); }
+
+    void push_sstream();
+    void pop_sstream();
+    StringStream* current_sstream() { return string_streams_.top().get(); }
+
+    void dump() const;
 
 private:
     ConstantTable<int64_t> constant_integers_;
@@ -54,6 +65,7 @@ private:
     ConstantStrTable constant_strings_;
     std::map<std::string, PackagePtr> packages_;
     std::stack<PackagePtr> loading_packages_;
+    std::stack<StringStreamPtr> string_streams_;
 };
 
 } // namespace nf

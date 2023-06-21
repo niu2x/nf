@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include "main_vm_c_api.h"
 //#define LISP ((lisp_t*)userdata)
 
 extern void nf_error(void* p, void*, const char*);
@@ -30,17 +31,19 @@ extern void nf_error(void* p, void*, const char*);
 
 start: file_block NF_TK_EOF
 
-file_block: package_declare stmts
+file_block: { main_vm_push_package(); } package_declare stmts { main_vm_pop_package(); }
 
-package_declare: NF_TK_PACKAGE package_name semi
+package_declare: NF_TK_PACKAGE { main_vm_push_sstream(); } package_name { main_vm_pop_sstream(); } semis
 
-package_name: NF_TK_SYMBOL more_package_name_fields
+package_name: NF_TK_SYMBOL { main_vm_current_sstream_append_string_constant($<constant_index>1); } more_package_name_fields {main_vm_current_package_set_name_as_current_sstream();}
 
 more_package_name_fields: 
-	| '.' NF_TK_SYMBOL more_package_name_fields
+	| '.' { main_vm_current_sstream_append_string("."); } NF_TK_SYMBOL { main_vm_current_sstream_append_string_constant($<constant_index>3); }  more_package_name_fields
 
-semi: 
-	| ';'
+semis: 
+	| semis1
+
+semis1: ';' semis
 
 stmts: 
 	| stmts1

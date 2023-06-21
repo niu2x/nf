@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include <nf/config.h>
+#include "vm.h"
 
 #include "lexer.h"
 
@@ -14,6 +15,7 @@ static cxxopts::Options build_command_args_parser()
     options.add_options()("v,version", "display version");
     options.add_options()("h,help", "display help");
     options.add_options()("only-lexer", "");
+    options.add_options()("dump", "");
     return options;
 }
 
@@ -70,8 +72,8 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    auto only_lexer = cmd_args["only-lexer"].as<bool>();
-    if (only_lexer) {
+    auto opt_only_lexer = cmd_args["only-lexer"].as<bool>();
+    if (opt_only_lexer) {
         nf::Lexer lexer;
         lexer.push_input(stdin);
         nf::Token token;
@@ -83,6 +85,11 @@ int main(int argc, char* argv[])
     }
 
     run(stdin);
+
+    auto opt_dump = cmd_args["dump"].as<bool>();
+    if (opt_dump) {
+        nf::VM::main()->dump();
+    }
 
     return 0;
 }

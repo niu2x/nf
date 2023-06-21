@@ -85,6 +85,33 @@ bool VM::lookup_constant(int index, const char** out)
     return ConstantTable_lookup(&constant_strings_, index, out);
 }
 
+void VM::push_package()
+{
+    auto package = std::make_unique<Package>();
+    loading_packages_.push(std::move(package));
+}
+void VM::pop_package()
+{
+    auto package = std::move(loading_packages_.top());
+    loading_packages_.pop();
+    packages_[package->name()] = std::move(package);
+}
+
+void VM::push_sstream()
+{
+    auto ss = std::make_unique<StringStream>();
+    string_streams_.push(std::move(ss));
+}
+void VM::pop_sstream() { string_streams_.pop(); }
+
+void VM::dump() const
+{
+    printf("packages:\n");
+    for (auto& item : packages_) {
+        printf("\t%s\n", item.second->name().c_str());
+    }
+}
+
 static VM main_;
 VM* VM::main() { return &main_; }
 
