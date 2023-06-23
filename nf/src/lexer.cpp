@@ -1,5 +1,4 @@
 #include "lexer.h"
-#include "vm.h"
 
 extern "C" {
 
@@ -41,13 +40,13 @@ void token_dump(const Token* self, FILE* fp)
     switch (self->type) {
         case NF_TK_INTEGER: {
             int64_t i = 0;
-            VM::main()->lookup_constant(self->value.constant_index, &i);
+            // VM::main()->lookup_constant(self->value.constant_index, &i);
             fprintf(fp, "%ld", i);
             break;
         }
         case NF_TK_DOUBLE: {
             double d = 0;
-            VM::main()->lookup_constant(self->value.constant_index, &d);
+            // VM::main()->lookup_constant(self->value.constant_index, &d);
             fprintf(fp, "%lf", d);
             break;
         }
@@ -55,7 +54,7 @@ void token_dump(const Token* self, FILE* fp)
         case NF_TK_SYMBOL:
         case NF_TK_STRING: {
             const char* sz = "";
-            VM::main()->lookup_constant(self->value.constant_index, &sz);
+            // VM::main()->lookup_constant(self->value.constant_index, &sz);
             fprintf(fp, "%s", sz);
             break;
         }

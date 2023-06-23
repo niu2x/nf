@@ -1,71 +1,28 @@
 #ifndef NF_VM_H
 #define NF_VM_H
 
-#include <vector>
-#include <cstdint>
 #include <string>
-#include <memory>
 #include <map>
-#include <stack>
-#include <sstream>
-
-#include "utils.h"
+#include <set>
+#include <vector>
+#include <memory>
 
 namespace nf {
 
 class Package {
-public:
-    Package();
-    ~Package();
-    bool loading() const { return loading_; }
-    const std::string& name() const { return name_; }
-    void set_name(const std::string& name) { name_ = name; }
-
-private:
-    std::string name_;
-    bool loading_;
 };
 
-class VM : private Noncopyable {
-public:
-    template <class T>
-    using ConstantTable = std::vector<T>;
-    using UniqueConstStrPtr = std::unique_ptr<const std::string>;
-    using ConstantStrTable = ConstantTable<UniqueConstStrPtr>;
-    using PackagePtr = std::unique_ptr<Package>;
-    using StringStream = std::stringstream;
-    using StringStreamPtr = std::unique_ptr<StringStream>;
+using PackageName = std::string;
+using PackagePtr = std::unique_ptr<Package>;
 
+class VM {
+public:
     VM();
     ~VM();
-
-    static VM* main();
-
-    int insert_constant(int64_t i);
-    int insert_constant(double d);
-    int insert_constant(const char* sz);
-
-    bool lookup_constant(int index, int64_t* out);
-    bool lookup_constant(int index, double* out);
-    bool lookup_constant(int index, const char** out);
-
-    void push_package();
-    void pop_package();
-    Package* current_package() { return loading_packages_.top().get(); }
-
-    void push_sstream();
-    void pop_sstream();
-    StringStream* current_sstream() { return string_streams_.top().get(); }
-
-    void dump() const;
+    load(FILE* fp);
 
 private:
-    ConstantTable<int64_t> constant_integers_;
-    ConstantTable<double> constant_doubles_;
-    ConstantStrTable constant_strings_;
-    std::map<std::string, PackagePtr> packages_;
-    std::stack<PackagePtr> loading_packages_;
-    std::stack<StringStreamPtr> string_streams_;
+    std::map<PackageName, PackagePtr> packages_;
 };
 
 } // namespace nf

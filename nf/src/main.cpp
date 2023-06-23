@@ -3,7 +3,6 @@
 #include <iostream>
 
 #include <nf/config.h>
-#include "vm.h"
 
 #include "lexer.h"
 
@@ -40,9 +39,8 @@ static void display_version()
     printf("v%d.%d.%d\n", NF_VERSION_MAJOR, NF_VERSION_MINOR, NF_VERSION_PATCH);
 }
 
-static void run(FILE* fp)
+static void load_file(FILE* fp)
 {
-
     nf::Lexer lexer;
     nf::Parser parser;
     lexer.push_input(fp);
@@ -53,8 +51,13 @@ static void run(FILE* fp)
         if (!succ) {
             exit(1);
         }
-
     } while (token.type != NF_TK_EOF);
+}
+
+static void run(FILE* fp)
+{
+    load_file(fp);
+    // nf::VM::main()->run();
 }
 
 int main(int argc, char* argv[])
@@ -88,7 +91,7 @@ int main(int argc, char* argv[])
 
     auto opt_dump = cmd_args["dump"].as<bool>();
     if (opt_dump) {
-        nf::VM::main()->dump();
+        // nf::VM::main()->dump();
     }
 
     return 0;

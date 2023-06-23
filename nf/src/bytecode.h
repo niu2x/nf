@@ -2,27 +2,42 @@
 #define VM_BYTECODE_H
 
 #include <sstream>
-#include <stdint>
+#include <cstdint>
 #include "utils.h"
 
 namespace nf {
 
+// class VM;
+
 enum class InstructionType : uint8_t {
-    PRINT = 1,
+    NONE = 0,
+    PRINT,
+    LOAD_CONSTANT_INTEGER,
 };
 
 class Instruction {
 public:
+    static Instruction load_constant_integer(int constant_index);
+    static Instruction print();
+
+    Instruction();
+    ~Instruction();
+
     NF_INLINE void encode(std::stringstream* ss) { _encode(ss); }
+    NF_INLINE size_t decode(const uint8_t* bytecodes)
+    {
+        return _decode(bytecodes);
+    }
+    // NF_INLINE void execute(VM* vm) { _execute(vm); }
 
-    NF_INLINE void decode(std::stringstream* ss) { _decode(ss); }
+private:
+    void _encode(std::stringstream* ss);
+    size_t _decode(const uint8_t* bytecodes);
+    // void _execute(VM* vm);
 
-protected:
-    virtual void _encode(std::stringstream* ss) = 0;
-    virtual void _decode(std::stringstream* ss) = 0;
+    InstructionType type_;
+    int constant_index_;
 };
-
-Instruction*
 
 } // namespace nf
 
