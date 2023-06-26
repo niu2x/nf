@@ -4,8 +4,6 @@
 
 #include <nf/config.h>
 
-#include "lexer.h"
-
 static void die() { exit(1); }
 
 static cxxopts::Options build_command_args_parser()
@@ -36,28 +34,8 @@ static auto parse_command_args(int argc, char* argv[])
 
 static void display_version()
 {
-    printf("v%d.%d.%d\n", NF_VERSION_MAJOR, NF_VERSION_MINOR, NF_VERSION_PATCH);
-}
-
-static void load_file(FILE* fp)
-{
-    nf::Lexer lexer;
-    nf::Parser parser;
-    lexer.push_input(fp);
-    nf::Token token;
-    do {
-        token = lexer.lex();
-        bool succ = parser.parse(token, nullptr);
-        if (!succ) {
-            exit(1);
-        }
-    } while (token.type != NF_TK_EOF);
-}
-
-static void run(FILE* fp)
-{
-    load_file(fp);
-    // nf::VM::main()->run();
+    printf(
+        "nf v%d.%d.%d\n", NF_VERSION_MAJOR, NF_VERSION_MINOR, NF_VERSION_PATCH);
 }
 
 int main(int argc, char* argv[])
@@ -75,24 +53,8 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    auto opt_only_lexer = cmd_args["only-lexer"].as<bool>();
-    if (opt_only_lexer) {
-        nf::Lexer lexer;
-        lexer.push_input(stdin);
-        nf::Token token;
-        do {
-            token = lexer.lex();
-            token_dump(&token, stdout);
-        } while (token.type != NF_TK_EOF);
-        return 0;
-    }
-
-    run(stdin);
-
     auto opt_dump = cmd_args["dump"].as<bool>();
-    if (opt_dump) {
-        // nf::VM::main()->dump();
-    }
+    if (opt_dump) { }
 
     return 0;
 }

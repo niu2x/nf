@@ -1,18 +1,16 @@
 #ifndef NF_UTILS_H
 #define NF_UTILS_H
 
-namespace nf {
-void die(const char* fmt, ...);
+#include <cstdlib>
 
-class Noncopyable {
-public:
-    Noncopyable() { }
-    ~Noncopyable() { }
-    Noncopyable(const Noncopyable& other) = delete;
-    Noncopyable& operator=(const Noncopyable& other) = delete;
-};
+namespace nf {
+
+void die(const char* fmt, ...);
 }
 
 #define NF_INLINE inline
+
+#define NF_ALLOC(T)     (T*)calloc(1, sizeof(T))
+#define NF_FREE(T, ptr) free(ptr)
 
 #endif
