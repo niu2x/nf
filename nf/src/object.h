@@ -5,26 +5,11 @@
 #include <cstddef>
 
 #include "utils.h"
+#include "api.h"
+#include "basic_types.h"
+#include "array.h"
 
 namespace nf {
-
-enum class Type : uint8_t {
-    NIL,
-    Integer,
-    Number,
-    Thread,
-    Table,
-    String,
-};
-
-using Flags = uint8_t;
-using Hash = uint32_t;
-
-using Integer = int64_t;
-using Number = double;
-
-using Size = size_t;
-using Instruction = uint32_t;
 
 struct Object {
     Object* next;
@@ -82,22 +67,28 @@ struct CallInfo {
     int tailcalls;
 };
 
+struct LongJmp {
+    LongJmp* prev;
+    jmp_buf b;
+    Error status;
+};
+
 struct State : Object {
-    uint8_t status;
-    TValue* top; // free slots
-    TValue* base;
+    Error status;
     GlobalState* global;
     const Instruction* saved_pc; /* `savedpc' of current function */
 
-    TValue* stack;
-    Size stack_alloc;
-    Size stack_nr;
+    TValue* top; // free slots
+    TValue* base;
 
-    CallInfo* ci;
-    Size ci_nr;
-    Size ci_alloc;
+    // TValue* stack;
+    // Size stack_alloc;
+    // Size stack_nr;
+    Array<TValue> stack;
+    Array<CallInfo> call_infos;
 
     TValue gt;
+    struct LongJmp* error_jmp; /* current error recover point */
 };
 
 #define State_global(state)   (state->global)

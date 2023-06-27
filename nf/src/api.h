@@ -8,10 +8,15 @@ struct State;
 State* State_open();
 void State_close(State*);
 
-// LUA_API lua_CFunction (lua_atpanic) (lua_State *L, lua_CFunction panicf);
+using Pfunc = void (*)(State* L, void* ud);
 
-// void throw (lua_State *L, int errcode);
-// int rawrunprotected (lua_State *L, Pfunc f, void *ud);
+enum class Error : uint8_t {
+    OK,
+};
+using E = Error;
+
+Error State_run_protected(State* self, Pfunc f, void* ud);
+void State_throw(State* self, Error err);
 
 } // namespace nf
 
