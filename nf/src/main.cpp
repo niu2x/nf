@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include <nf/config.h>
+#include <nf/api.h>
 
 static void die() { exit(1); }
 
@@ -53,8 +54,8 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    auto opt_dump = cmd_args["dump"].as<bool>();
-    if (opt_dump) { }
+    auto th = nf::Thread_open();
+    nf::Thread_close(th);
 
     return 0;
 }

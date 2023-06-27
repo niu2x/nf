@@ -7,7 +7,6 @@
 #include "utils.h"
 #include "api.h"
 #include "basic_types.h"
-#include "array.h"
 
 namespace nf {
 
@@ -73,7 +72,7 @@ struct LongJmp {
     Error status;
 };
 
-struct State : Object {
+struct Thread : Object {
     Error status;
     GlobalState* global;
     const Instruction* saved_pc; /* `savedpc' of current function */
@@ -81,18 +80,19 @@ struct State : Object {
     TValue* top; // free slots
     TValue* base;
 
-    // TValue* stack;
-    // Size stack_alloc;
-    // Size stack_nr;
-    Array<TValue> stack;
-    Array<CallInfo> call_infos;
+    TValue* stack;
+    Size stack_nr;
+
+    CallInfo* ci_base;
+    Size ci_nr;
+    CallInfo* ci;
 
     TValue gt;
     struct LongJmp* error_jmp; /* current error recover point */
 };
 
-#define State_global(state)   (state->global)
-#define State_registry(state) (&(state->global->registry))
+#define Thread_global(th)   (th->global)
+#define Thread_registry(th) (&(th->global->registry))
 
 } // namespace nf
 

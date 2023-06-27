@@ -1,6 +1,9 @@
 #ifndef NF_BASIC_TYPES_H
 #define NF_BASIC_TYPES_H
 
+#include <cstdint>
+#include <cstddef>
+
 namespace nf {
 
 enum class Type : uint8_t {
