@@ -16,15 +16,15 @@ struct Object {
     Flags flags;
 };
 
-union Value {
-    Integer i;
-    Number n;
-    Object* obj;
-};
-
 struct TValue {
     Type type;
-    Value value;
+    union {
+        Integer i;
+        Number n;
+        Object* obj;
+        const Instruction* pc;
+        Index index;
+    };
 };
 
 NF_INLINE void TValue_set_nil(TValue* tv) { tv->type = Type::NIL; }
@@ -49,6 +49,28 @@ struct Table : Object {
     Size node_alloc;
 };
 
+struct Proto : Object {
+    Instruction* ins;
+    Size ins_nr;
+};
+
+enum class FuncType {
+    C,
+    NF,
+};
+
+struct Func : Object {
+    FuncType func_type;
+    union {
+        struct {
+            CFunc c_func;
+        };
+        struct {
+            Proto* proto;
+        };
+    };
+};
+
 struct GlobalState {
     // CFunction panic;
     TValue registry;
@@ -57,14 +79,14 @@ struct GlobalState {
     // Buffer buffer;
 };
 
-struct CallInfo {
-    TValue* base;
-    TValue* top;
-    TValue* func;
-    const Instruction* saved_pc;
-    int results;
-    int tailcalls;
-};
+// struct CallInfo {
+//     TValue* base;
+//     TValue* top;
+//     TValue* func;
+//     const Instruction* saved_pc;
+//     int results;
+//     int tailcalls;
+// };
 
 struct LongJmp {
     LongJmp* prev;
@@ -75,7 +97,7 @@ struct LongJmp {
 struct Thread : Object {
     Error status;
     GlobalState* global;
-    const Instruction* saved_pc; /* `savedpc' of current function */
+    const Instruction* pc; /* `savedpc' of current function */
 
     TValue* top; // free slots
     TValue* base;
@@ -83,9 +105,9 @@ struct Thread : Object {
     TValue* stack;
     Size stack_nr;
 
-    CallInfo* ci_base;
-    Size ci_nr;
-    CallInfo* ci;
+    // CallInfo* ci_base;
+    // Size ci_nr;
+    // CallInfo* ci;
 
     TValue gt;
     struct LongJmp* error_jmp; /* current error recover point */
@@ -93,6 +115,11 @@ struct Thread : Object {
 
 #define Thread_global(th)   (th->global)
 #define Thread_registry(th) (&(th->global->registry))
+
+#define obj2func(obj) ((Func*)(obj))
+#define is_obj(type)
+#define check(cond) true
+#define tv2obj(tv)  (check(is_obj((tv)->type)), (tv)->obj)
 
 } // namespace nf
 

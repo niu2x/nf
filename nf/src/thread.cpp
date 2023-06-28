@@ -1,9 +1,11 @@
 #include <setjmp.h>
+#include <string.h>
 
 #include "object.h"
 #include "api.h"
 #include "utils.h"
 #include "zio.h"
+#include "bytecode.h"
 
 namespace nf {
 
@@ -12,20 +14,36 @@ const Size basic_stack_nr = 32;
 
 static void Thread_stack_init(Thread* self)
 {
-    self->ci_base = NF_ALLOC_ARRAY_P(self, CallInfo, basic_ci_nr);
-    self->ci_nr = basic_ci_nr;
-    self->ci = self->ci_base;
-
     self->stack = NF_ALLOC_ARRAY_P(self, TValue, basic_stack_nr);
     self->stack_nr = basic_stack_nr;
     self->top = self->stack;
     self->base = self->stack;
+}
 
-    self->ci->func = self->top;
-    TValue_set_nil(self->top++);
+static Instruction halt_ins = INS_OP(Opcode::HALT);
 
-    self->ci->base = self->base = self->top;
-    self->ci->top = self->top + 20;
+static void Thread_init_step_one(Thread* self)
+{
+
+    TValue_set_nil(&(self->gt));
+
+    TValue_set_nil(Thread_registry(self));
+    Thread_global(self)->root = self;
+
+    self->error_jmp = nullptr;
+
+    self->stack = nullptr;
+    self->stack_nr = 0;
+
+    self->pc = &halt_ins;
+
+    self->base = nullptr;
+    self->top = nullptr;
+}
+
+static void Thread_init_step_two(Thread* self, void* unused)
+{
+    Thread_stack_init(self);
 }
 
 struct Twin {
@@ -41,27 +59,14 @@ Thread* Thread_open()
 
     auto self = &(twin->thread);
     Thread_global(self) = &(twin->global);
-
     self->type = Type::Thread;
-    TValue_set_nil(&(self->gt));
 
-    TValue_set_nil(Thread_registry(self));
-    Thread_global(self)->root = self;
+    Thread_init_step_one(self);
 
-    self->error_jmp = nullptr;
-
-    self->stack = nullptr;
-    self->stack_nr = 0;
-
-    self->ci = self->ci_base = nullptr;
-    self->ci_nr = 0;
-
-    self->saved_pc = 0;
-
-    self->base = nullptr;
-    self->top = nullptr;
-
-    Thread_stack_init(self);
+    if (E::OK != Thread_run_protected(self, Thread_init_step_two, nullptr)) {
+        Thread_close(self);
+        self = nullptr;
+    }
 
     return self;
 }
@@ -69,11 +74,10 @@ Thread* Thread_open()
 void Thread_close(Thread* self)
 {
     NF_FREE(self->stack);
-    NF_FREE(self->ci_base);
     NF_FREE(self);
 }
 
-Error Thread_run_protected(Thread* self, Pfunc f, void* ud)
+Error Thread_run_protected(Thread* self, ProtectedFunc f, void* ud)
 {
     LongJmp recover;
     recover.status = E::OK;
@@ -131,6 +135,46 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
     ls.s = buff;
     ls.size = size;
     return Thread_load(self, (Reader)LoadS_read, &ls, name);
+}
+
+// Error Thread_pcall(Thread* self, ProtectedFunc f, void* u) { }
+
+void Thread_call(Thread* self, Index func_i)
+{
+    auto tv_func = stack_slot(self, func_i);
+    Size params_nr = self->top - tv_func - 1;
+
+    Thread_push_pc(self, self->pc);
+    Thread_push_index(self, self->base - self->stack);
+    Thread_push_index(self, self->top - self->stack);
+
+    auto func = obj2func(tv2obj(tv_func));
+
+    self->base = self->top;
+    self->pc = func->proto->ins;
+}
+
+void Thread_run(Thread* self, const char* code)
+{
+    if (E::OK == Thread_load(self, code, strlen(code), "no_name")) {
+        Thread_call(self, -1);
+    } else {
+        Thread_throw(self, E::PARSE);
+    }
+}
+
+void Thread_push(Thread* self, TValue* tv) { }
+
+void Thread_push_index(Thread* self, Index index)
+{
+    TValue tv = { .type = Type::Index, .index = index };
+    Thread_push(self, &tv);
+}
+
+void Thread_push_pc(Thread* self, const Instruction* pc)
+{
+    TValue tv = { .type = Type::PC, .pc = pc };
+    Thread_push(self, &tv);
 }
 
 } // namespace nf

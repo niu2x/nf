@@ -7,6 +7,7 @@ struct Thread;
 
 Thread* Thread_open();
 void Thread_close(Thread*);
+void Thread_run(Thread*, const char* code);
 
 } // namespace nf
 

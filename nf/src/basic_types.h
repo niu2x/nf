@@ -13,6 +13,8 @@ enum class Type : uint8_t {
     Thread,
     Table,
     String,
+    PC,
+    Index,
 };
 
 using Flags = uint8_t;
@@ -21,8 +23,10 @@ using Hash = uint32_t;
 using Integer = int64_t;
 using Number = double;
 
+using Index = int32_t;
+
 using Size = size_t;
-using Instruction = uint32_t;
+using Instruction = uint64_t;
 
 } // namespace nf
 

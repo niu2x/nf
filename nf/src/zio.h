@@ -9,16 +9,16 @@ namespace nf {
 
 struct MBuffer {
     char* data;
-    size_t nr;
-    size_t alloc;
+    Size nr;
+    Size alloc;
 };
 
 #define MBuffer_init(self)                                                     \
     ((self)->data = nullptr, (self)->alloc = (self)->nr = 0)
 #define MBuffer_reset(self) ((self)->nr = 0)
-#define MBuffer_resize(th, self, alloc)                                        \
+#define MBuffer_reserve(th, self, alloc)                                       \
     (self->data = NF_REALLOC_P((self)->data, (alloc)), (self)->alloc = alloc)
-#define MBuffer_free(self) NF_FREE(self->data)
+#define MBuffer_free(self) NF_FREE((self)->data)
 
 struct ZIO {
     /* bytes still unread */
@@ -32,6 +32,9 @@ struct ZIO {
 };
 
 void ZIO_init(Thread* L, ZIO* z, Reader reader, void* data);
+int ZIO_peak(ZIO* z);
+int ZIO_fill(ZIO* z);
+Size ZIO_read(ZIO* z, void* b, Size n);
 
 } // namespace nf
 
