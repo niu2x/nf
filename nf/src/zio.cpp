@@ -13,7 +13,7 @@ void ZIO_init(Thread* th, ZIO* z, Reader reader, void* data)
     z->p = NULL;
 }
 
-int ZIO_peak(ZIO* self)
+int ZIO_peek(ZIO* self)
 {
     if (self->n == 0) {
         if (ZIO_fill(self) == EOF)
@@ -45,7 +45,7 @@ Size ZIO_read(ZIO* self, void* b, Size n)
 {
     while (n) {
         Size m;
-        if (ZIO_peak(self) == EOF)
+        if (ZIO_peek(self) == EOF)
             return n; /* return number of missing bytes */
         m = (n <= self->n) ? n : self->n; /* min. between n and self->n */
         memcpy(b, self->p, m);
@@ -56,14 +56,5 @@ Size ZIO_read(ZIO* self, void* b, Size n)
     }
     return 0;
 }
-
-// /* ------------------------------------------------------------------------
-// */ char *ZIO_openspace (Thread *th, Mbuffer *buff, Size n) {
-//   if (n > buff->alloc) {
-//     if (n < 256) n = 256;
-//     MBuffer_reserve(th, buff, n);
-//   }
-//   return buff->buffer;
-// }
 
 } // namespace nf

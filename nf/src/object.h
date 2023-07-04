@@ -1,6 +1,8 @@
 #ifndef NF_OBJECT_H
 #define NF_OBJECT_H
 
+#include <setjmp.h>
+
 #include <cstdint>
 #include <cstddef>
 
@@ -70,6 +72,9 @@ struct Func : Object {
         };
     };
 };
+
+Func* Func_new(Thread* th, Proto* proto);
+Proto* Proto_new(Thread* th);
 
 struct GlobalState {
     // CFunction panic;

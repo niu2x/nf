@@ -1,4 +1,5 @@
 #include <setjmp.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "object.h"
@@ -20,8 +21,6 @@ static void Thread_stack_init(Thread* self)
     self->base = self->stack;
 }
 
-static Instruction halt_ins = INS_OP(Opcode::HALT);
-
 static void Thread_init_step_one(Thread* self)
 {
 
@@ -35,7 +34,7 @@ static void Thread_init_step_one(Thread* self)
     self->stack = nullptr;
     self->stack_nr = 0;
 
-    self->pc = &halt_ins;
+    self->pc = nullptr;
 
     self->base = nullptr;
     self->top = nullptr;
@@ -98,6 +97,7 @@ void Thread_throw(Thread* self, Error err)
         self->error_jmp->status = err;
         longjmp(self->error_jmp->b, -1);
     } else {
+        fprintf(stderr, "throw without protect: %d\n", (int)err);
         self->status = err;
         exit(EXIT_FAILURE);
     }
@@ -121,11 +121,11 @@ Error Thread_load(Thread* self, Reader reader, void* data, const char* name)
 {
 
     ZIO z;
-    Error err;
+    Error err = E::LOAD;
     if (!name)
         name = "?";
     ZIO_init(self, &z, reader, data);
-    // status = luaD_protectedparser(L, &z, chunkname);
+    err = protected_parser(self, &z, name);
     return err;
 }
 
@@ -138,6 +138,32 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
 }
 
 // Error Thread_pcall(Thread* self, ProtectedFunc f, void* u) { }
+
+static void __Thread_run(Thread* self)
+{
+    while (self->pc) {
+        Instruction ins = *(self->pc++);
+        switch (INS_OP(ins)) {
+            case Opcode::TEST: {
+                printf("hello world\n");
+                break;
+            }
+            case Opcode::RET_0: {
+                self->top = self->base;
+
+                self->top = Thread_pop_index(self) + self->stack;
+                self->base = Thread_pop_index(self) + self->stack;
+                self->pc = Thread_pop_pc(self);
+
+                break;
+            }
+            default: {
+                fprintf(stderr, "unsupport bytecode %u\n", INS_OP(ins));
+                exit(1);
+            }
+        }
+    }
+}
 
 void Thread_call(Thread* self, Index func_i)
 {
@@ -152,18 +178,49 @@ void Thread_call(Thread* self, Index func_i)
 
     self->base = self->top;
     self->pc = func->proto->ins;
+
+    __Thread_run(self);
+}
+
+Error Thread_pcall(Thread* self, ProtectedFunc f, void* ud)
+{
+    auto old_top = self->top - self->stack;
+    auto old_base = self->base - self->stack;
+    auto old_pc = self->pc;
+
+    auto err = Thread_run_protected(self, f, ud);
+    if (err != E::OK) {
+        self->top = self->stack + old_top;
+        self->base = self->stack + old_base;
+        self->pc = old_pc;
+    }
+    return err;
 }
 
 void Thread_run(Thread* self, const char* code)
 {
-    if (E::OK == Thread_load(self, code, strlen(code), "no_name")) {
+    auto err = Thread_load(self, code, strlen(code), "no_name");
+    if (E::OK == err) {
         Thread_call(self, -1);
     } else {
-        Thread_throw(self, E::PARSE);
+        Thread_throw(self, err);
     }
 }
 
-void Thread_push(Thread* self, TValue* tv) { }
+void Thread_push(Thread* self, TValue* tv)
+{
+    if (self->stack_nr <= (self->top - self->stack)) {
+        self->stack = NF_REALLOC_ARRAY_P(
+            self, self->stack, TValue, self->stack_nr * 3 / 2 + 16);
+    }
+    *(self->top++) = *tv;
+}
+
+void Thread_push_func(Thread* self, Func* f)
+{
+    TValue tv = { .type = Type::Func, .obj = f };
+    Thread_push(self, &tv);
+}
 
 void Thread_push_index(Thread* self, Index index)
 {
@@ -171,10 +228,14 @@ void Thread_push_index(Thread* self, Index index)
     Thread_push(self, &tv);
 }
 
+Index Thread_pop_index(Thread* self) { return (--self->top)->index; }
+
 void Thread_push_pc(Thread* self, const Instruction* pc)
 {
     TValue tv = { .type = Type::PC, .pc = pc };
     Thread_push(self, &tv);
 }
+
+const Instruction* Thread_pop_pc(Thread* self) { return (--self->top)->pc; }
 
 } // namespace nf

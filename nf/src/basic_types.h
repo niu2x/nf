@@ -10,11 +10,14 @@ enum class Type : uint8_t {
     NIL,
     Integer,
     Number,
+    PC,
+    Index,
+    Proto,
     Thread,
     Table,
     String,
-    PC,
-    Index,
+    Func,
+
 };
 
 using Flags = uint8_t;

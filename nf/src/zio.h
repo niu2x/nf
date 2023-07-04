@@ -32,7 +32,7 @@ struct ZIO {
 };
 
 void ZIO_init(Thread* L, ZIO* z, Reader reader, void* data);
-int ZIO_peak(ZIO* z);
+int ZIO_peek(ZIO* z);
 int ZIO_fill(ZIO* z);
 Size ZIO_read(ZIO* z, void* b, Size n);
 
