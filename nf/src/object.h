@@ -35,6 +35,7 @@ struct Str : Object {
     char* base;
     int nr;
     Hash hash;
+    Hash sid;
 };
 
 struct Node {
@@ -55,6 +56,9 @@ struct Proto : Object {
     Instruction* ins;
     Size ins_nr;
     Size var_nr;
+
+    Size const_nr;
+    TValue* const_arr;
 };
 
 enum class FuncType {
@@ -77,12 +81,19 @@ struct Func : Object {
 Func* Func_new(Thread* th, Proto* proto);
 Proto* Proto_new(Thread* th);
 
+struct StrTab {
+    Str** buckets;
+    Size buckets_nr;
+};
+
 struct GlobalState {
     // CFunction panic;
     TValue registry;
     Size total_bytes;
     Object* root;
     // Buffer buffer;
+
+    StrTab str_tab;
 };
 
 // struct CallInfo {

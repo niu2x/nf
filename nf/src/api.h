@@ -18,6 +18,7 @@ enum class Error : uint8_t {
     OUT_OF_MEMORY,
     PARSE,
     LOAD,
+    OP_NUM,
 };
 
 using E = Error;
@@ -40,6 +41,9 @@ Index Thread_pop_index(Thread* self);
 
 struct ZIO;
 Error protected_parser(Thread* th, ZIO* z, const char* name);
+
+struct Str;
+Str* Str_new(Thread* th, const char* ptr, Size nr);
 
 } // namespace nf
 

@@ -1,6 +1,6 @@
 #ifndef NF_ZIO_H
 #define NF_ZIO_H
-
+#include <string.h>
 #include "basic_types.h"
 #include "utils.h"
 #include "api.h"
@@ -16,9 +16,19 @@ struct MBuffer {
 #define MBuffer_init(self)                                                     \
     ((self)->data = nullptr, (self)->alloc = (self)->nr = 0)
 #define MBuffer_reset(self) ((self)->nr = 0)
-#define MBuffer_reserve(th, self, alloc)                                       \
-    (self->data = NF_REALLOC_P((self)->data, (alloc)), (self)->alloc = alloc)
+#define MBuffer_reserve(th, self, new_alloc)                                   \
+    (self)->data                                                               \
+        = (char*)NF_REALLOC_P((th), (void*)((self)->data), (new_alloc)),       \
+        (self)->alloc = (new_alloc)
 #define MBuffer_free(self) NF_FREE((self)->data)
+#define MBuffer_append(th, self, ptr, size)                                    \
+    {                                                                          \
+        if ((self)->nr + (size) > (self)->alloc) {                             \
+            MBuffer_reserve((th), (self), ((self)->nr + (size)) * 3 / 2 + 16); \
+        }                                                                      \
+        memcpy((self)->data + (self)->nr, (ptr), (size));                      \
+        (self)->nr += (size);                                                  \
+    }
 
 struct ZIO {
     /* bytes still unread */

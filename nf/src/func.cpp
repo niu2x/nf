@@ -20,6 +20,8 @@ Proto* Proto_new(Thread* th)
     proto->ins = nullptr;
     proto->ins_nr = 0;
     proto->var_nr = 0;
+    proto->const_arr = nullptr;
+    proto->const_nr = 0;
     return proto;
 }
 

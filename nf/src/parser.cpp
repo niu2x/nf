@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <ctype.h>
 
 #include "api.h"
 #include "zio.h"
@@ -23,6 +24,8 @@ enum TokenType {
     TT_EOF,
     TT_INTEGER,
     TT_NUMBER,
+    TT_SYMBOL,
+    TT_PRINT,
 };
 
 struct Token {
@@ -51,40 +54,97 @@ struct FuncState {
 
 static Token next_token(LexState* ls)
 {
+    auto buff = ls->buff;
     if (ls->current == EOF) {
         ls->current = ZIO_next(ls->z);
     }
 
-    switch (ls->current) {
-        case EOF: {
-            next_chr(ls);
-            return Token { .token = TT_EOF };
-        }
+    while (true)
+        switch (ls->current) {
+            case EOF: {
+                next_chr(ls);
+                return Token { .token = TT_EOF };
+            }
 
-        case '-': {
-            next_chr(ls);
-            return Token { .token = '-' };
-        }
+            case '-': {
+                next_chr(ls);
+                return Token { .token = '-' };
+            }
 
-        case '+': {
-            next_chr(ls);
-            return Token { .token = '+' };
-        }
+            case '+': {
+                next_chr(ls);
+                return Token { .token = '+' };
+            }
 
-        case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9': {
-            Integer i = ls->current - '0';
-            TokenType tt = TT_INTEGER;
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9': {
+                Integer i = ls->current - '0';
+                Number n;
+                Number scale;
+                TokenType tt = TT_INTEGER;
+                next_chr(ls);
+
+                while (true) {
+                    if (tt == TT_INTEGER) {
+                        if (ls->current >= '0' && ls->current <= '9') {
+                            i = i * 10 + ls->current - '0';
+                            next_chr(ls);
+                        } else if (ls->current == '.') {
+                            tt = TT_NUMBER;
+                            n = i;
+                            scale = 0.1;
+                            next_chr(ls);
+                        } else {
+                            break;
+                        }
+                    } else {
+                        if (ls->current >= '0' && ls->current <= '9') {
+                            n = n + scale * (ls->current - '0');
+                            scale *= 0.1;
+                            next_chr(ls);
+                        } else
+                            break;
+                    }
+                }
+
+                if (tt == TT_INTEGER)
+                    return Token { .token = tt, .seminfo = { .i = i } };
+                else
+                    return Token { .token = tt, .seminfo = { .n = n } };
+            }
+            case '\r':
+            case '\t':
+            case '\n': {
+                next_chr(ls);
+                break;
+            }
+
+            default: {
+                if (ls->current == '_' || isalpha(ls->current)) {
+                    char ch = ls->current;
+                    MBuffer_reset(buff);
+                    MBuffer_append(ls->th, buff, &ch, 1);
+                    next_chr(ls);
+
+                    while (ls->current == '_' || isalnum(ls->current)) {
+                        MBuffer_append(ls->th, buff, &ch, 1);
+                        next_chr(ls);
+                    }
+
+                    auto str = Str_new(ls->th, buff->data, buff->nr);
+                    return Token { .token = TT_SYMBOL,
+                        .seminfo = { .s = str } };
+                }
+            }
         }
-    }
 
     Thread_throw(ls->th, E::PARSE);
 
@@ -110,7 +170,7 @@ static NF_INLINE Token* next(LexState* ls)
     return &(ls->t);
 }
 
-static bool stmt(FuncState* ls) { return false; }
+static bool stmt(FuncState* ls) { return true; }
 
 static bool stmt_with_semi(FuncState* fs)
 {

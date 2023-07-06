@@ -9,6 +9,10 @@ enum class Opcode : uint16_t {
     // printf niu2x say hello to ff
     TEST = 100,
     RET_0,
+    ADD,
+    SUB,
+    PRINT,
+    CONST,
 };
 
 // NO_ARGS(48)_OP(16)

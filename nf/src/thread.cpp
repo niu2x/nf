@@ -21,13 +21,42 @@ static void Thread_stack_init(Thread* self)
     self->base = self->stack;
 }
 
+static void StrTab_init(Thread* th, StrTab* self)
+{
+    self->buckets_nr = 0;
+    self->buckets = nullptr;
+
+    self->buckets = NF_REALLOC_ARRAY_P(th, self->buckets, Str*, 31);
+    self->buckets_nr = 31;
+    for (Index i = 0; i < 31; i++)
+        self->buckets[i] = nullptr;
+}
+
+static bool StrTab_insert(Thread* th, StrTab* self, Str* str)
+{
+    Index bucket_index = str->hash % self->buckets_nr;
+    Str* ptr = self->buckets[bucket_index];
+    while (ptr) {
+        if (ptr->hash == str->hash && ptr->nr == str->nr) {
+            if (memcmp(ptr->base, str->base, str->nr) == 0) {
+                return false;
+            }
+        }
+        ptr = (Str*)(ptr->next);
+    }
+
+    str->next = self->buckets[bucket_index];
+    self->buckets[bucket_index] = str;
+    return true;
+}
+
 static void Thread_init_step_one(Thread* self)
 {
-
     TValue_set_nil(&(self->gt));
-
     TValue_set_nil(Thread_registry(self));
-    Thread_global(self)->root = self;
+    auto g = Thread_global(self);
+    g->root = self;
+    StrTab_init(self, &(g->str_tab));
 
     self->error_jmp = nullptr;
 
@@ -139,6 +168,16 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
 
 // Error Thread_pcall(Thread* self, ProtectedFunc f, void* u) { }
 
+// template<class T1, class T2>
+// auto op_add(T1 t1, T2 t2) {
+//     return t1 + t2;
+// }
+
+// template<class T1, class T2>
+// auto op_sub(T1 t1, T2 t2) {
+//     return t1 - t2;
+// }
+
 static void __Thread_run(Thread* self)
 {
     while (self->pc) {
@@ -157,6 +196,116 @@ static void __Thread_run(Thread* self)
 
                 break;
             }
+
+            case Opcode::ADD: {
+
+                TValue* second = self->top - 1;
+                TValue* first = self->top - 2;
+
+                TValue result;
+
+                if (first->type == Type::Integer) {
+                    if (second->type == Type::Integer) {
+                        result = { .type = Type::Integer,
+                            .i = first->i + second->i };
+                    } else if (second->type == Type::Number) {
+                        result = { .type = Type::Number,
+                            .n = first->i + second->n };
+                    } else {
+                        Thread_throw(self, E::OP_NUM);
+                    }
+
+                }
+
+                else if (first->type == Type::Number) {
+                    if (second->type == Type::Integer) {
+                        result = { .type = Type::Number,
+                            .n = first->n + second->i };
+
+                    } else if (second->type == Type::Number) {
+                        result = { .type = Type::Number,
+                            .n = first->n + second->n };
+                    } else {
+                        Thread_throw(self, E::OP_NUM);
+                    }
+
+                }
+
+                else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                *(self->top - 2) = result;
+                self->top--;
+
+                break;
+            }
+
+            case Opcode::SUB: {
+
+                TValue* second = self->top - 1;
+                TValue* first = self->top - 2;
+
+                TValue result;
+
+                if (first->type == Type::Integer) {
+                    if (second->type == Type::Integer) {
+                        result = { .type = Type::Integer,
+                            .i = first->i - second->i };
+                    } else if (second->type == Type::Number) {
+                        result = { .type = Type::Number,
+                            .n = first->i - second->n };
+                    } else {
+                        Thread_throw(self, E::OP_NUM);
+                    }
+
+                }
+
+                else if (first->type == Type::Number) {
+                    if (second->type == Type::Integer) {
+                        result = { .type = Type::Number,
+                            .n = first->n - second->i };
+
+                    } else if (second->type == Type::Number) {
+                        result = { .type = Type::Number,
+                            .n = first->n - second->n };
+                    } else {
+                        Thread_throw(self, E::OP_NUM);
+                    }
+
+                }
+
+                else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                *(self->top - 2) = result;
+                self->top--;
+
+                break;
+            }
+
+            case Opcode::PRINT: {
+                TValue* first = self->top - 1;
+
+                switch (first->type) {
+                    case Type::Integer: {
+                        printf("%ld", first->i);
+                        break;
+                    }
+                    case Type::Number: {
+                        printf("%lf", first->n);
+                        break;
+                    }
+                    default: {
+                        printf("print it unsupport for %d", (int)(self->type));
+                    }
+                }
+
+                self->top--;
+                break;
+            }
+
             default: {
                 fprintf(stderr, "unsupport bytecode %u\n", INS_OP(ins));
                 exit(1);
