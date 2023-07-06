@@ -17,10 +17,9 @@ Proto* Proto_new(Thread* th)
 {
     auto proto = NF_ALLOC_ARRAY_P(th, Proto, 1);
     proto->type = Type::Proto;
-    proto->ins = NF_ALLOC_ARRAY_P(th, Instruction, 2);
-    proto->ins[0] = INS_FROM_OP_NO_ARGS(Opcode::TEST);
-    proto->ins[1] = INS_FROM_OP_NO_ARGS(Opcode::RET_0);
-    proto->ins_nr = 2;
+    proto->ins = nullptr;
+    proto->ins_nr = 0;
+    proto->var_nr = 0;
     return proto;
 }
 

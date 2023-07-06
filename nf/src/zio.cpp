@@ -27,6 +27,16 @@ int ZIO_peek(ZIO* self)
     return (int)(*self->p);
 }
 
+int ZIO_next(ZIO* self)
+{
+    int ch = ZIO_peek(self);
+    if (ch != EOF) {
+        self->n -= 1;
+        self->p += 1;
+    }
+    return ch;
+}
+
 int ZIO_fill(ZIO* self)
 {
     Size size;

@@ -54,6 +54,7 @@ struct Table : Object {
 struct Proto : Object {
     Instruction* ins;
     Size ins_nr;
+    Size var_nr;
 };
 
 enum class FuncType {
