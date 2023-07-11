@@ -18,7 +18,11 @@ enum class Opcode : uint16_t {
 // NO_ARGS(48)_OP(16)
 
 #define INS_OP(op)              (((Opcode)((op)&0xFFFF)))
+#define INS_ABCDEF(op)          ((op) >> 16)
+
 #define INS_FROM_OP_NO_ARGS(op) ((Instruction)(op))
+#define INS_FROM_OP_ABCDEF(op, ABCDEF)                                         \
+    INS_FROM_OP_NO_ARGS(op) | ((Instruction)((ABCDEF) << 16))
 
 } // namespace nf
 

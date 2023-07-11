@@ -82,6 +82,8 @@ static void Thread_init_step_one(Thread* self)
 
     self->base = nullptr;
     self->top = nullptr;
+
+    self->func = nullptr;
 }
 
 static void Thread_init_step_two(Thread* self, void* unused)
@@ -152,8 +154,9 @@ struct LoadS {
     size_t size;
 };
 
-static const char* LoadS_read(LoadS* self, size_t* size)
+static const char* LoadS_read(Thread* th, void* ud, size_t* size)
 {
+    LoadS* self = (LoadS*)ud;
     if (self->size == 0)
         return nullptr;
     *size = self->size;
@@ -178,7 +181,7 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
     LoadS ls;
     ls.s = buff;
     ls.size = size;
-    return Thread_load(self, (Reader)LoadS_read, &ls, name);
+    return Thread_load(self, LoadS_read, &ls, name);
 }
 
 // Error Thread_pcall(Thread* self, ProtectedFunc f, void* u) { }
@@ -208,6 +211,7 @@ static void __Thread_run(Thread* self)
                 self->top = Thread_pop_index(self) + self->stack;
                 self->base = Thread_pop_index(self) + self->stack;
                 self->pc = Thread_pop_pc(self);
+                self->func = self->func->prev;
 
                 break;
             }
@@ -321,6 +325,13 @@ static void __Thread_run(Thread* self)
                 break;
             }
 
+            case Opcode::CONST: {
+                auto const_index = (Index)INS_ABCDEF(ins);
+                auto* tv = &(self->func->proto->const_arr[const_index]);
+                Thread_push(self, tv);
+                break;
+            }
+
             default: {
                 fprintf(stderr, "unsupport bytecode %u\n", INS_OP(ins));
                 exit(1);
@@ -342,6 +353,9 @@ void Thread_call(Thread* self, Index func_i)
 
     self->base = self->top;
     self->pc = func->proto->ins;
+
+    func->prev = self->func;
+    self->func = func;
 
     __Thread_run(self);
 }

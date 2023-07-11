@@ -23,6 +23,7 @@ struct TValue {
     union {
         Integer i;
         Number n;
+
         Object* obj;
         const Instruction* pc;
         Index index;
@@ -55,9 +56,12 @@ struct Table : Object {
 struct Proto : Object {
     Instruction* ins;
     Size ins_nr;
+    Size ins_alloc;
+
     Size var_nr;
 
     Size const_nr;
+    Size const_alloc;
     TValue* const_arr;
 };
 
@@ -76,10 +80,14 @@ struct Func : Object {
             Proto* proto;
         };
     };
+
+    Func* prev;
 };
 
 Func* Func_new(Thread* th, Proto* proto);
 Proto* Proto_new(Thread* th);
+void Proto_append_ins(Thread* th, Proto* self, Instruction ins);
+Index Proto_insert_const(Thread* th, Proto* self, TValue* v);
 
 struct StrTab {
     Str** buckets;
@@ -128,6 +136,8 @@ struct Thread : Object {
 
     TValue gt;
     struct LongJmp* error_jmp; /* current error recover point */
+
+    Func* func;
 };
 
 #define Thread_global(th)   (th->global)

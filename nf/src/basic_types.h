@@ -25,6 +25,7 @@ using Hash = uint32_t;
 
 using Integer = int64_t;
 using Number = double;
+// static_assert sizeof(Integer) == sizeof(Number)
 
 using Index = int32_t;
 

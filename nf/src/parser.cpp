@@ -1,9 +1,14 @@
+
+
 #include <stdio.h>
 #include <ctype.h>
 
 #include "api.h"
 #include "zio.h"
+#include "bytecode.h"
 #include "object.h"
+
+#define printf(...)
 
 namespace nf {
 
@@ -26,6 +31,16 @@ enum TokenType {
     TT_NUMBER,
     TT_SYMBOL,
     TT_PRINT,
+};
+
+struct Keyword {
+    const char* symbol;
+    int token;
+};
+
+static Keyword keywords[] = {
+    { "print", TT_PRINT },
+    { nullptr, 0 },
 };
 
 struct Token {
@@ -56,10 +71,11 @@ static Token next_token(LexState* ls)
 {
     auto buff = ls->buff;
     if (ls->current == EOF) {
-        ls->current = ZIO_next(ls->z);
+        next_chr(ls);
     }
 
-    while (true)
+    while (true) {
+        printf("ls->current %d %c\n", ls->current, ls->current);
         switch (ls->current) {
             case EOF: {
                 next_chr(ls);
@@ -120,8 +136,9 @@ static Token next_token(LexState* ls)
                 else
                     return Token { .token = tt, .seminfo = { .n = n } };
             }
-            case '\r':
             case '\t':
+            case ' ':
+            case '\r':
             case '\n': {
                 next_chr(ls);
                 break;
@@ -133,19 +150,31 @@ static Token next_token(LexState* ls)
                     MBuffer_reset(buff);
                     MBuffer_append(ls->th, buff, &ch, 1);
                     next_chr(ls);
+                    printf("ls->current %c %d\n", ls->current, ls->current);
 
                     while (ls->current == '_' || isalnum(ls->current)) {
+                        char ch = ls->current;
                         MBuffer_append(ls->th, buff, &ch, 1);
                         next_chr(ls);
+                        printf("ls->current %c %d\n", ls->current, ls->current);
                     }
 
                     auto str = Str_new(ls->th, buff->data, buff->nr);
+
+                    auto keyword = keywords;
+                    while (keyword->symbol) {
+                        if (!strcmp(keyword->symbol, str->base)) {
+                            return Token { .token = keyword->token };
+                        }
+                        keyword++;
+                    }
+
                     return Token { .token = TT_SYMBOL,
                         .seminfo = { .s = str } };
                 }
             }
         }
-
+    }
     Thread_throw(ls->th, E::PARSE);
 
     return NONE;
@@ -170,7 +199,71 @@ static NF_INLINE Token* next(LexState* ls)
     return &(ls->t);
 }
 
-static bool stmt(FuncState* ls) { return true; }
+static void emit(FuncState* fs, Instruction ins)
+{
+    Proto_append_ins(fs->ls->th, fs->proto, ins);
+}
+
+static void emit_const(FuncState* fs, TValue* c)
+{
+    auto const_index = Proto_insert_const(fs->ls->th, fs->proto, c);
+    next(fs->ls);
+    emit(fs, INS_FROM_OP_ABCDEF(Opcode::CONST, const_index));
+}
+
+static void const_value(FuncState* fs)
+{
+    auto token = peek(fs->ls);
+    switch (token->token) {
+        case TT_INTEGER: {
+            TValue value = { .type = Type::Integer, .i = token->seminfo.i };
+            emit_const(fs, &value);
+            break;
+        }
+
+        case TT_NUMBER: {
+            TValue value = { .type = Type::Number, .n = token->seminfo.n };
+            emit_const(fs, &value);
+            break;
+        }
+        default: {
+            Thread_throw(fs->ls->th, E::PARSE);
+        }
+    }
+}
+
+static void expr(FuncState* fs) { const_value(fs); }
+
+static void stmt_print(FuncState* fs)
+{
+    expr(fs);
+    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::PRINT));
+}
+
+static bool stmt(FuncState* fs)
+{
+    auto token = peek(fs->ls);
+
+    bool chunk_finished = false;
+
+    switch (token->token) {
+        case TT_EOF: {
+            chunk_finished = true;
+            break;
+        }
+        case TT_PRINT: {
+            next(fs->ls);
+            stmt_print(fs);
+            break;
+        }
+
+        default: {
+            Thread_throw(fs->ls->th, E::PARSE);
+        }
+    }
+
+    return chunk_finished;
+}
 
 static bool stmt_with_semi(FuncState* fs)
 {
@@ -187,6 +280,7 @@ static void chunk(FuncState* fs)
     while (!chunk_finished) {
         chunk_finished = stmt_with_semi(fs);
     }
+    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_0));
 }
 
 static Proto* y_parser(Thread* th, ZIO* z, MBuffer* buff, const char* name)

@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
     }
 
     auto th = nf::Thread_open();
-    nf::Thread_run(th, "print('hello world')");
+    nf::Thread_run(th, "print 1.34 ");
     nf::Thread_close(th);
 
     return 0;
