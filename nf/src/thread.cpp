@@ -32,22 +32,37 @@ static void StrTab_init(Thread* th, StrTab* self)
         self->buckets[i] = nullptr;
 }
 
-static bool StrTab_insert(Thread* th, StrTab* self, Str* str)
+void StrTab_insert(Thread* th, StrTab* self, Str* str)
 {
     Index bucket_index = str->hash % self->buckets_nr;
+    // Str* ptr = self->buckets[bucket_index];
+    // while (ptr) {
+    //     if (ptr->hash == str->hash && ptr->nr == str->nr) {
+    //         if (memcmp(ptr->base, str->base, str->nr) == 0) {
+    //             return false;
+    //         }
+    //     }
+    //     ptr = (Str*)(ptr->next);
+    // }
+
+    str->next = self->buckets[bucket_index];
+    self->buckets[bucket_index] = str;
+}
+
+Str* StrTab_search(StrTab* self, const char* str, Size len, Hash hash)
+{
+    Index bucket_index = hash % self->buckets_nr;
     Str* ptr = self->buckets[bucket_index];
     while (ptr) {
-        if (ptr->hash == str->hash && ptr->nr == str->nr) {
-            if (memcmp(ptr->base, str->base, str->nr) == 0) {
-                return false;
+        if (ptr->hash == hash && ptr->nr == len) {
+            if (memcmp(ptr->base, str, len) == 0) {
+                return ptr;
             }
         }
         ptr = (Str*)(ptr->next);
     }
 
-    str->next = self->buckets[bucket_index];
-    self->buckets[bucket_index] = str;
-    return true;
+    return nullptr;
 }
 
 static void Thread_init_step_one(Thread* self)

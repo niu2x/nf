@@ -45,6 +45,10 @@ Error protected_parser(Thread* th, ZIO* z, const char* name);
 struct Str;
 Str* Str_new(Thread* th, const char* ptr, Size nr);
 
+struct StrTab;
+void StrTab_insert(Thread* th, StrTab* self, Str* str);
+Str* StrTab_search(StrTab* self, const char* str, Size len, Hash hash);
+
 } // namespace nf
 
 #define NF_ALLOC_P(th, size)                                                   \

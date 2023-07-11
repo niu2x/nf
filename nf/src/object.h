@@ -35,7 +35,7 @@ struct Str : Object {
     char* base;
     int nr;
     Hash hash;
-    Hash sid;
+    // Hash sid;
 };
 
 struct Node {
