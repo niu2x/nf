@@ -145,39 +145,56 @@ static Token next_token(LexState* ls)
                 break;
             }
 
-            default: {
-                if (ls->current == '_' || isalpha(ls->current)) {
-                    char ch = ls->current;
-                    MBuffer_reset(buff);
-                    MBuffer_append(ls->th, buff, &ch, 1);
+            case '\'': {
+                case '"': {
+                    auto quote = ls->current;
                     next_chr(ls);
-                    printf("ls->current %c %d\n", ls->current, ls->current);
-
-                    while (ls->current == '_' || isalnum(ls->current)) {
+                    MBuffer_reset(buff);
+                    while (ls->current != quote) {
                         char ch = ls->current;
                         MBuffer_append(ls->th, buff, &ch, 1);
                         next_chr(ls);
-                        printf("ls->current %c %d\n", ls->current, ls->current);
                     }
-
+                    next_chr(ls);
                     auto str = Str_new(ls->th, buff->data, buff->nr);
 
-                    auto keyword = keywords;
-                    while (keyword->symbol) {
-                        if (!strcmp(keyword->symbol, str->base)) {
-                            return Token { .token = keyword->token };
-                        }
-                        keyword++;
-                    }
+                    break;
+                }
 
-                    return Token { .token = TT_SYMBOL,
-                        .seminfo = { .s = str } };
-                } else {
-                    Thread_throw(
-                        ls->th, E::PARSE, "when next_token unexpected char");
+                default: {
+                    if (ls->current == '_' || isalpha(ls->current)) {
+                        char ch = ls->current;
+                        MBuffer_reset(buff);
+                        MBuffer_append(ls->th, buff, &ch, 1);
+                        next_chr(ls);
+                        printf("ls->current %c %d\n", ls->current, ls->current);
+
+                        while (ls->current == '_' || isalnum(ls->current)) {
+                            char ch = ls->current;
+                            MBuffer_append(ls->th, buff, &ch, 1);
+                            next_chr(ls);
+                            printf("ls->current %c %d\n", ls->current,
+                                ls->current);
+                        }
+
+                        auto str = Str_new(ls->th, buff->data, buff->nr);
+
+                        auto keyword = keywords;
+                        while (keyword->symbol) {
+                            if (!strcmp(keyword->symbol, str->base)) {
+                                return Token { .token = keyword->token };
+                            }
+                            keyword++;
+                        }
+
+                        return Token { .token = TT_SYMBOL,
+                            .seminfo = { .s = str } };
+                    } else {
+                        Thread_throw(ls->th, E::PARSE,
+                            "when next_token unexpected char");
+                    }
                 }
             }
-        }
     }
     Thread_throw(ls->th, E::PARSE, "never happened");
 
@@ -232,7 +249,6 @@ static void const_value(FuncState* fs)
             emit_const(fs, &value);
             break;
         }
-
         case TT_NUMBER: {
             TValue value = { .type = Type::Number, .n = token->seminfo.n };
             emit_const(fs, &value);
