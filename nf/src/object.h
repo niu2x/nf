@@ -117,6 +117,11 @@ struct LongJmp {
     LongJmp* prev;
     jmp_buf b;
     Error status;
+    const char* msg;
+};
+
+enum {
+    ERROR_MSG_NR = 128,
 };
 
 struct Thread : Object {
@@ -138,6 +143,8 @@ struct Thread : Object {
     struct LongJmp* error_jmp; /* current error recover point */
 
     Func* func;
+
+    char error_msg[ERROR_MSG_NR];
 };
 
 #define Thread_global(th)   (th->global)

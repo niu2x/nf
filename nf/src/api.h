@@ -26,7 +26,7 @@ struct TValue;
 struct Func;
 
 Error Thread_run_protected(Thread* self, ProtectedFunc f, void* ud);
-void Thread_throw(Thread* self, Error err);
+void Thread_throw(Thread* self, Error err, const char* = nullptr);
 
 Error Thread_load(Thread* self, const char* buff, Size size, const char* name);
 void Thread_run(Thread*, const char* code);

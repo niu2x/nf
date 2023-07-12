@@ -175,7 +175,7 @@ static Token next_token(LexState* ls)
             }
         }
     }
-    Thread_throw(ls->th, E::PARSE);
+    Thread_throw(ls->th, E::PARSE, "never happened");
 
     return NONE;
 }
@@ -227,12 +227,42 @@ static void const_value(FuncState* fs)
             break;
         }
         default: {
-            Thread_throw(fs->ls->th, E::PARSE);
+            printf("token->token %d\n", token->token);
+            Thread_throw(
+                fs->ls->th, E::PARSE, "when const_value, unexpected token");
         }
     }
 }
 
-static void expr(FuncState* fs) { const_value(fs); }
+static void add_or_sub_elem(FuncState* fs) { const_value(fs); }
+
+static void expr(FuncState* fs)
+{
+    add_or_sub_elem(fs);
+    while (true) {
+        auto token = peek(fs->ls);
+        switch (token->token) {
+            case '+': {
+                next(fs->ls);
+                add_or_sub_elem(fs);
+                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::ADD));
+                break;
+            }
+            case '-': {
+                next(fs->ls);
+                add_or_sub_elem(fs);
+                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::SUB));
+                break;
+            }
+            default: {
+                goto end_loop;
+            }
+        }
+    }
+end_loop:
+
+    (void)0;
+}
 
 static void stmt_print(FuncState* fs)
 {
@@ -243,7 +273,6 @@ static void stmt_print(FuncState* fs)
 static bool stmt(FuncState* fs)
 {
     auto token = peek(fs->ls);
-
     bool chunk_finished = false;
 
     switch (token->token) {
@@ -258,7 +287,7 @@ static bool stmt(FuncState* fs)
         }
 
         default: {
-            Thread_throw(fs->ls->th, E::PARSE);
+            Thread_throw(fs->ls->th, E::PARSE, "when stmt, unexpected token");
         }
     }
 

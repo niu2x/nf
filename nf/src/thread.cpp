@@ -84,6 +84,8 @@ static void Thread_init_step_one(Thread* self)
     self->top = nullptr;
 
     self->func = nullptr;
+
+    self->error_msg[0] = 0;
 }
 
 static void Thread_init_step_two(Thread* self, void* unused)
@@ -127,23 +129,30 @@ Error Thread_run_protected(Thread* self, ProtectedFunc f, void* ud)
     LongJmp recover;
     recover.status = E::OK;
     recover.prev = self->error_jmp;
+    recover.msg = nullptr;
     self->error_jmp = &recover;
 
     if (setjmp(recover.b) >= 0) {
         f(self, ud);
     }
 
+    if (recover.msg) {
+        snprintf(self->error_msg, ERROR_MSG_NR - 1, "%s", recover.msg);
+    }
+
     self->error_jmp = recover.prev;
     return recover.status;
 }
 
-void Thread_throw(Thread* self, Error err)
+void Thread_throw(Thread* self, Error err, const char* msg)
 {
     if (self->error_jmp) {
         self->error_jmp->status = err;
+        self->error_jmp->msg = msg;
         longjmp(self->error_jmp->b, -1);
     } else {
-        fprintf(stderr, "throw without protect: %d\n", (int)err);
+        fprintf(stderr, "throw without protect: %d %s\n", (int)err,
+            msg ?: self->error_msg);
         self->status = err;
         exit(EXIT_FAILURE);
     }
@@ -309,11 +318,11 @@ static void __Thread_run(Thread* self)
 
                 switch (first->type) {
                     case Type::Integer: {
-                        printf("%ld", first->i);
+                        printf("%ld\n", first->i);
                         break;
                     }
                     case Type::Number: {
-                        printf("%lf", first->n);
+                        printf("%lf\n", first->n);
                         break;
                     }
                     default: {
@@ -378,6 +387,39 @@ Error Thread_pcall(Thread* self, ProtectedFunc f, void* ud)
 void Thread_run(Thread* self, const char* code)
 {
     auto err = Thread_load(self, code, strlen(code), "no_name");
+    if (E::OK == err) {
+        Thread_call(self, -1);
+    } else {
+        Thread_throw(self, err);
+    }
+}
+
+template <Size N>
+class ArrayBuf {
+public:
+    char base[N];
+    static constexpr Size size = N;
+};
+
+struct LoadFile {
+    ArrayBuf<1024> buf;
+    FILE* fp;
+};
+
+static const char* FILE_read(Thread* th, void* ud, size_t* size)
+{
+    LoadFile* loadf = (LoadFile*)ud;
+    if (feof(loadf->fp))
+        return nullptr;
+    auto read_n = fread(loadf->buf.base, 1, loadf->buf.size, loadf->fp);
+    *size = read_n;
+    return loadf->buf.base;
+}
+
+void Thread_run(Thread* self, FILE* fp)
+{
+    LoadFile load = { .fp = fp };
+    auto err = Thread_load(self, FILE_read, &load, "stdin");
     if (E::OK == err) {
         Thread_call(self, -1);
     } else {
