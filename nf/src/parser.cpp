@@ -82,14 +82,13 @@ static Token next_token(LexState* ls)
                 return Token { .token = TT_EOF };
             }
 
-            case '-': {
-                next_chr(ls);
-                return Token { .token = '-' };
-            }
-
+            case '*':
+            case '/':
+            case '-':
             case '+': {
+                auto c = ls->current;
                 next_chr(ls);
-                return Token { .token = '+' };
+                return Token { .token = c };
             }
 
             case '0':
@@ -171,6 +170,9 @@ static Token next_token(LexState* ls)
 
                     return Token { .token = TT_SYMBOL,
                         .seminfo = { .s = str } };
+                } else {
+                    Thread_throw(
+                        ls->th, E::PARSE, "when next_token unexpected char");
                 }
             }
         }
