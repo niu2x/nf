@@ -11,6 +11,8 @@ enum class Opcode : uint16_t {
     RET_0,
     ADD,
     SUB,
+    MUL,
+    DIV,
     PRINT,
     CONST,
 };

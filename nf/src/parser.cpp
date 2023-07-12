@@ -234,7 +234,35 @@ static void const_value(FuncState* fs)
     }
 }
 
-static void add_or_sub_elem(FuncState* fs) { const_value(fs); }
+static void mul_or_div_elem(FuncState* fs) { const_value(fs); }
+
+static void add_or_sub_elem(FuncState* fs)
+{
+    mul_or_div_elem(fs);
+    while (true) {
+        auto token = peek(fs->ls);
+        switch (token->token) {
+            case '*': {
+                next(fs->ls);
+                mul_or_div_elem(fs);
+                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::MUL));
+                break;
+            }
+            case '/': {
+                next(fs->ls);
+                mul_or_div_elem(fs);
+                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::DIV));
+                break;
+            }
+            default: {
+                goto end_loop;
+            }
+        }
+    }
+end_loop:
+
+    (void)0;
+}
 
 static void expr(FuncState* fs)
 {

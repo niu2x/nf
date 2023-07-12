@@ -205,6 +205,32 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
 //     return t1 - t2;
 // }
 
+#define BIN_OP(_OP_)                                                           \
+    TValue* second = self->top - 1;                                            \
+    TValue* first = self->top - 2;                                             \
+    TValue result;                                                             \
+    if (first->type == Type::Integer) {                                        \
+        if (second->type == Type::Integer) {                                   \
+            result = { .type = Type::Integer, .i = first->i _OP_ second->i };  \
+        } else if (second->type == Type::Number) {                             \
+            result = { .type = Type::Number, .n = first->i _OP_ second->n };   \
+        } else {                                                               \
+            Thread_throw(self, E::OP_NUM);                                     \
+        }                                                                      \
+    } else if (first->type == Type::Number) {                                  \
+        if (second->type == Type::Integer) {                                   \
+            result = { .type = Type::Number, .n = first->n _OP_ second->i };   \
+        } else if (second->type == Type::Number) {                             \
+            result = { .type = Type::Number, .n = first->n _OP_ second->n };   \
+        } else {                                                               \
+            Thread_throw(self, E::OP_NUM);                                     \
+        }                                                                      \
+    } else {                                                                   \
+        Thread_throw(self, E::OP_NUM);                                         \
+    }                                                                          \
+    *(self->top - 2) = result;                                                 \
+    self->top--;
+
 static void __Thread_run(Thread* self)
 {
     while (self->pc) {
@@ -226,90 +252,22 @@ static void __Thread_run(Thread* self)
             }
 
             case Opcode::ADD: {
-
-                TValue* second = self->top - 1;
-                TValue* first = self->top - 2;
-
-                TValue result;
-
-                if (first->type == Type::Integer) {
-                    if (second->type == Type::Integer) {
-                        result = { .type = Type::Integer,
-                            .i = first->i + second->i };
-                    } else if (second->type == Type::Number) {
-                        result = { .type = Type::Number,
-                            .n = first->i + second->n };
-                    } else {
-                        Thread_throw(self, E::OP_NUM);
-                    }
-
-                }
-
-                else if (first->type == Type::Number) {
-                    if (second->type == Type::Integer) {
-                        result = { .type = Type::Number,
-                            .n = first->n + second->i };
-
-                    } else if (second->type == Type::Number) {
-                        result = { .type = Type::Number,
-                            .n = first->n + second->n };
-                    } else {
-                        Thread_throw(self, E::OP_NUM);
-                    }
-
-                }
-
-                else {
-                    Thread_throw(self, E::OP_NUM);
-                }
-
-                *(self->top - 2) = result;
-                self->top--;
-
+                BIN_OP(+);
                 break;
             }
 
             case Opcode::SUB: {
+                BIN_OP(-);
+                break;
+            }
 
-                TValue* second = self->top - 1;
-                TValue* first = self->top - 2;
+            case Opcode::MUL: {
+                BIN_OP(*);
+                break;
+            }
 
-                TValue result;
-
-                if (first->type == Type::Integer) {
-                    if (second->type == Type::Integer) {
-                        result = { .type = Type::Integer,
-                            .i = first->i - second->i };
-                    } else if (second->type == Type::Number) {
-                        result = { .type = Type::Number,
-                            .n = first->i - second->n };
-                    } else {
-                        Thread_throw(self, E::OP_NUM);
-                    }
-
-                }
-
-                else if (first->type == Type::Number) {
-                    if (second->type == Type::Integer) {
-                        result = { .type = Type::Number,
-                            .n = first->n - second->i };
-
-                    } else if (second->type == Type::Number) {
-                        result = { .type = Type::Number,
-                            .n = first->n - second->n };
-                    } else {
-                        Thread_throw(self, E::OP_NUM);
-                    }
-
-                }
-
-                else {
-                    Thread_throw(self, E::OP_NUM);
-                }
-
-                *(self->top - 2) = result;
-                self->top--;
-
+            case Opcode::DIV: {
+                BIN_OP(/);
                 break;
             }
 
