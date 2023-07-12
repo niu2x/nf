@@ -82,6 +82,8 @@ static Token next_token(LexState* ls)
                 return Token { .token = TT_EOF };
             }
 
+            case '(':
+            case ')':
             case '*':
             case '/':
             case '-':
@@ -190,7 +192,7 @@ static NF_INLINE Token* peek(LexState* ls)
     return &(ls->peek);
 }
 
-static NF_INLINE Token* next(LexState* ls)
+static NF_INLINE void next(LexState* ls)
 {
     if (ls->peek.token == TT_NONE) {
         ls->t = next_token(ls);
@@ -198,7 +200,15 @@ static NF_INLINE Token* next(LexState* ls)
         ls->t = ls->peek;
         ls->peek = NONE;
     }
-    return &(ls->t);
+}
+
+static NF_INLINE void expect(LexState* ls, int token)
+{
+    if (peek(ls)->token == token) {
+        next(ls);
+    } else {
+        Thread_throw(ls->th, E::PARSE, "expect error");
+    }
 }
 
 static void emit(FuncState* fs, Instruction ins)
@@ -236,7 +246,21 @@ static void const_value(FuncState* fs)
     }
 }
 
-static void mul_or_div_elem(FuncState* fs) { const_value(fs); }
+static void single_value(FuncState* fs) { const_value(fs); }
+
+static void expr(FuncState* fs);
+
+static void mul_or_div_elem(FuncState* fs)
+{
+    auto token = peek(fs->ls);
+    if (token->token == '(') {
+        next(fs->ls);
+        expr(fs);
+        expect(fs->ls, ')');
+    } else {
+        single_value(fs);
+    }
+}
 
 static void add_or_sub_elem(FuncState* fs)
 {
