@@ -298,6 +298,10 @@ static void __Thread_run(Thread* self)
                         printf("nil\n");
                         break;
                     }
+                    case Type::Table: {
+                        printf("table(%p)\n", first->obj);
+                        break;
+                    }
                     default: {
                         printf("print it unsupport for %d", (int)(self->type));
                     }
@@ -336,6 +340,36 @@ static void __Thread_run(Thread* self)
                 auto slot = (Index)INS_ABCDEF(ins);
                 *(self->base + slot) = *(self->top - 1);
                 self->top--;
+                break;
+            }
+
+            case Opcode::NEW_TABLE: {
+                auto table = Table_new(self);
+                TValue v = { .type = Type::Table, .obj = table };
+                Thread_push(self, &v);
+                break;
+            }
+
+            case Opcode::TABLE_SET: {
+                TValue* value = self->top - 1;
+                TValue* key = self->top - 2;
+                auto slot = (Index)INS_ABCD(ins);
+                *Table_set(self, tv2table(self->base + slot), key) = *value;
+                self->top -= 2;
+                break;
+            }
+
+            case Opcode::TABLE_GET: {
+                TValue* key = self->top - 1;
+
+                auto slot = (Index)INS_ABCD(ins);
+
+                auto value = Table_get(self, tv2table(self->base + slot), key);
+                if (value)
+                    *(self->top - 1) = *value;
+                else
+                    (self->top - 1)->type = Type::NIL;
+
                 break;
             }
 

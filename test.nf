@@ -21,3 +21,10 @@ print f/3.0
 
 local g = 'hello test'
 print g
+
+local t = {}
+t[0] = 2
+t[1] = 22
+print t
+print t[0]
+print t[1] + t[0]

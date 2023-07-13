@@ -53,11 +53,13 @@ struct Table : Object {
 
     Node** node_ptr;
     Size node_alloc;
+    Size node_count;
 };
 
+Table* Table_new(Thread* th);
 void Table_init(Table* self);
 TValue* Table_set(Thread* th, Table* self, Index index);
-TValue* Table_set(Thread* th, Table* self, TValue* key);
+TValue* Table_set(Thread* th, Table* self, TValue* key, bool only_hash = false);
 
 TValue* Table_get(Thread* th, Table* self, Index index);
 TValue* Table_get(Thread* th, Table* self, TValue* key, bool only_hash = false);
@@ -177,10 +179,14 @@ struct Thread : Object {
 
 #define obj2func(obj) ((Func*)(obj))
 #define obj2str(obj)  ((Str*)(obj))
+#define obj2table(obj) ((Table*)(obj))
+
 #define is_obj(type)
 #define check(cond) true
+
 #define tv2obj(tv)  (check(is_obj((tv)->type)), (tv)->obj)
 #define tv2str(tv)  obj2str(tv2obj(tv))
+#define tv2table(tv) obj2table(tv2obj(tv))
 
 } // namespace nf
 

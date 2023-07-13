@@ -87,6 +87,10 @@ static Token next_token(LexState* ls)
                 return Token { .token = TT_EOF };
             }
 
+            case '[':
+            case ']':
+            case '{':
+            case '}':
             case '(':
             case ')':
             case '*':
@@ -257,6 +261,8 @@ static void emit_const(FuncState* fs, TValue* c)
     emit(fs, INS_FROM_OP_ABCDEF(Opcode::CONST, const_index), 1);
 }
 
+static void expr(FuncState* fs);
+
 static void const_value(FuncState* fs)
 {
     auto token = peek(fs->ls);
@@ -284,6 +290,13 @@ static void const_value(FuncState* fs)
     }
 }
 
+static void table_value(FuncState* fs)
+{
+    next(fs->ls);
+    expect(fs->ls, '}');
+    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::NEW_TABLE), 1);
+}
+
 static void single_value(FuncState* fs)
 {
     auto token = peek(fs->ls);
@@ -291,17 +304,28 @@ static void single_value(FuncState* fs)
         Index var_index = Scope_search(fs->scope, token->seminfo.s->base);
         if (var_index < 0) {
             emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
+            next(fs->ls);
         } else {
             auto slot = fs->scope->var_slots[var_index];
-            emit(fs, INS_FROM_OP_ABCDEF(Opcode::PUSH, slot), 1);
+            next(fs->ls);
+            token = peek(fs->ls);
+
+            if (token->token == '[') {
+                next(fs->ls);
+                expr(fs);
+                expect(fs->ls, ']');
+                emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_GET, slot), 0);
+            } else {
+                emit(fs, INS_FROM_OP_ABCDEF(Opcode::PUSH, slot), 1);
+            }
         }
-        next(fs->ls);
+
+    } else if (token->token == '{') {
+        table_value(fs);
     } else {
         const_value(fs);
     }
 }
-
-static void expr(FuncState* fs);
 
 static void mul_or_div_elem(FuncState* fs)
 {
@@ -417,10 +441,17 @@ static Index left_value(FuncState* fs)
     }
 
     slot = fs->scope->var_slots[var_index];
-
     next(fs->ls);
 
-    return slot;
+    token = peek(fs->ls);
+    if (token->token == '[') {
+        next(fs->ls);
+        expr(fs);
+        expect(fs->ls, ']');
+        return -slot - 1;
+    } else {
+        return slot;
+    }
 }
 
 static void left_value_action(FuncState* fs, Index left_slot)
@@ -430,7 +461,14 @@ static void left_value_action(FuncState* fs, Index left_slot)
         case '=': {
             next(fs->ls);
             expr(fs);
-            emit(fs, INS_FROM_OP_ABCDEF(Opcode::SET, left_slot), -1);
+            if (left_slot >= 0) {
+                emit(fs, INS_FROM_OP_ABCDEF(Opcode::SET, left_slot), -1);
+            } else {
+                printf("-left_slot-1 %016x\n",
+                    INS_FROM_OP_ABCD(Opcode::TABLE_SET, -left_slot - 1));
+                emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_SET, -left_slot - 1),
+                    -2);
+            }
             break;
         }
         default: {
