@@ -15,6 +15,9 @@ enum class Opcode : uint16_t {
     DIV,
     PRINT,
     CONST,
+    SET_NIL,
+    LOAD_NIL,
+    PUSH,
 };
 
 // NO_ARGS(48)_OP(16)

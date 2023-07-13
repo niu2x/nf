@@ -231,17 +231,17 @@ static NF_INLINE void expect(LexState* ls, int token)
     }
 }
 
-static void emit(FuncState* fs, Instruction ins)
+static void emit(FuncState* fs, Instruction ins, int slots_changed)
 {
     Proto_append_ins(fs->ls->th, fs->proto, ins);
+    fs->proto->used_slots += slots_changed;
 }
 
 static void emit_const(FuncState* fs, TValue* c)
 {
     auto const_index = Proto_insert_const(fs->ls->th, fs->proto, c);
     next(fs->ls);
-    emit(fs, INS_FROM_OP_ABCDEF(Opcode::CONST, const_index));
-    fs->proto->used_slots++;
+    emit(fs, INS_FROM_OP_ABCDEF(Opcode::CONST, const_index), 1);
 }
 
 static void const_value(FuncState* fs)
@@ -271,7 +271,22 @@ static void const_value(FuncState* fs)
     }
 }
 
-static void single_value(FuncState* fs) { const_value(fs); }
+static void single_value(FuncState* fs)
+{
+    auto token = peek(fs->ls);
+    if (token->token == TT_SYMBOL) {
+        Index var_index = Scope_search(fs->scope, token->seminfo.s->base);
+        if (var_index < 0) {
+            emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
+        } else {
+            auto slot = fs->scope->var_slots[var_index];
+            emit(fs, INS_FROM_OP_ABCDEF(Opcode::PUSH, slot), 1);
+        }
+        next(fs->ls);
+    } else {
+        const_value(fs);
+    }
+}
 
 static void expr(FuncState* fs);
 
@@ -296,15 +311,13 @@ static void add_or_sub_elem(FuncState* fs)
             case '*': {
                 next(fs->ls);
                 mul_or_div_elem(fs);
-                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::MUL));
-                fs->proto->used_slots--;
+                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::MUL), -1);
                 break;
             }
             case '/': {
                 next(fs->ls);
                 mul_or_div_elem(fs);
-                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::DIV));
-                fs->proto->used_slots--;
+                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::DIV), -1);
                 break;
             }
             default: {
@@ -326,15 +339,13 @@ static void expr(FuncState* fs)
             case '+': {
                 next(fs->ls);
                 add_or_sub_elem(fs);
-                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::ADD));
-                fs->proto->used_slots--;
+                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::ADD), -1);
                 break;
             }
             case '-': {
                 next(fs->ls);
                 add_or_sub_elem(fs);
-                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::SUB));
-                fs->proto->used_slots--;
+                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::SUB), -1);
                 break;
             }
             default: {
@@ -350,8 +361,7 @@ end_loop:
 static void stmt_print(FuncState* fs)
 {
     expr(fs);
-    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::PRINT));
-    fs->proto->used_slots--;
+    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::PRINT), -1);
 }
 
 static void stmt_local(FuncState* fs)
@@ -363,11 +373,13 @@ static void stmt_local(FuncState* fs)
 
     const char* var_name = token->seminfo.s->base;
 
-    if (Scope_search(fs->scope, var_name) < 0) {
-        Index var_index = Scope_insert(fs->scope, var_name);
+    Index var_index;
+    if ((var_index = Scope_search(fs->scope, var_name)) < 0) {
+        var_index = Scope_insert(fs->scope, var_name);
         fs->scope->var_slots[var_index] = fs->proto->used_slots++;
     }
 
+    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 0);
     next(fs->ls);
 }
 
@@ -422,7 +434,7 @@ static void chunk(FuncState* fs)
     while (!chunk_finished) {
         chunk_finished = stmt_with_semi(fs);
     }
-    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_0));
+    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_0), 0);
 }
 
 static Proto* y_parser(Thread* th, ZIO* z, MBuffer* buff, const char* name)

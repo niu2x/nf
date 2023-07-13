@@ -294,6 +294,10 @@ static void __Thread_run(Thread* self)
                         printf("\n");
                         break;
                     }
+                    case Type::NIL: {
+                        printf("nil\n");
+                        break;
+                    }
                     default: {
                         printf("print it unsupport for %d", (int)(self->type));
                     }
@@ -307,6 +311,24 @@ static void __Thread_run(Thread* self)
                 auto const_index = (Index)INS_ABCDEF(ins);
                 auto* tv = &(self->func->proto->const_arr[const_index]);
                 Thread_push(self, tv);
+                break;
+            }
+
+            case Opcode::SET_NIL: {
+                auto slot = (Index)INS_ABCDEF(ins);
+                (self->base + slot)->type = Type::NIL;
+                break;
+            }
+
+            case Opcode::LOAD_NIL: {
+                TValue tv = { .type = Type::NIL };
+                Thread_push(self, &tv);
+                break;
+            }
+
+            case Opcode::PUSH: {
+                auto slot = (Index)INS_ABCDEF(ins);
+                Thread_push(self, (self->base + slot));
                 break;
             }
 
