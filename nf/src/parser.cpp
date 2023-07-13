@@ -32,6 +32,7 @@ enum TokenType {
     TT_SYMBOL,
     TT_STRING,
     TT_PRINT,
+    TT_LOCAL,
 };
 
 struct Keyword {
@@ -40,6 +41,7 @@ struct Keyword {
 };
 
 static Keyword keywords[] = {
+    { "local", TT_LOCAL },
     { "print", TT_PRINT },
     { nullptr, 0 },
 };
@@ -64,6 +66,7 @@ struct LexState {
 struct FuncState {
     LexState* ls;
     Proto* proto;
+    Scope* scope;
 };
 
 #define next_chr(ls) (ls)->current = ZIO_next((ls)->z)
@@ -238,6 +241,7 @@ static void emit_const(FuncState* fs, TValue* c)
     auto const_index = Proto_insert_const(fs->ls->th, fs->proto, c);
     next(fs->ls);
     emit(fs, INS_FROM_OP_ABCDEF(Opcode::CONST, const_index));
+    fs->proto->used_slots++;
 }
 
 static void const_value(FuncState* fs)
@@ -293,12 +297,14 @@ static void add_or_sub_elem(FuncState* fs)
                 next(fs->ls);
                 mul_or_div_elem(fs);
                 emit(fs, INS_FROM_OP_NO_ARGS(Opcode::MUL));
+                fs->proto->used_slots--;
                 break;
             }
             case '/': {
                 next(fs->ls);
                 mul_or_div_elem(fs);
                 emit(fs, INS_FROM_OP_NO_ARGS(Opcode::DIV));
+                fs->proto->used_slots--;
                 break;
             }
             default: {
@@ -321,12 +327,14 @@ static void expr(FuncState* fs)
                 next(fs->ls);
                 add_or_sub_elem(fs);
                 emit(fs, INS_FROM_OP_NO_ARGS(Opcode::ADD));
+                fs->proto->used_slots--;
                 break;
             }
             case '-': {
                 next(fs->ls);
                 add_or_sub_elem(fs);
                 emit(fs, INS_FROM_OP_NO_ARGS(Opcode::SUB));
+                fs->proto->used_slots--;
                 break;
             }
             default: {
@@ -343,6 +351,24 @@ static void stmt_print(FuncState* fs)
 {
     expr(fs);
     emit(fs, INS_FROM_OP_NO_ARGS(Opcode::PRINT));
+    fs->proto->used_slots--;
+}
+
+static void stmt_local(FuncState* fs)
+{
+    auto token = peek(fs->ls);
+    if (token->token != TT_SYMBOL) {
+        Thread_throw(fs->ls->th, E::PARSE, "expect a symbol");
+    }
+
+    const char* var_name = token->seminfo.s->base;
+
+    if (Scope_search(fs->scope, var_name) < 0) {
+        Index var_index = Scope_insert(fs->scope, var_name);
+        fs->scope->var_slots[var_index] = fs->proto->used_slots++;
+    }
+
+    next(fs->ls);
 }
 
 static bool stmt(FuncState* fs)
@@ -358,6 +384,12 @@ static bool stmt(FuncState* fs)
         case TT_PRINT: {
             next(fs->ls);
             stmt_print(fs);
+            break;
+        }
+
+        case TT_LOCAL: {
+            next(fs->ls);
+            stmt_local(fs);
             break;
         }
 
@@ -380,6 +412,12 @@ static bool stmt_with_semi(FuncState* fs)
 
 static void chunk(FuncState* fs)
 {
+    Scope scope;
+    Scope_init(&scope, fs->ls->th);
+
+    scope.parent = fs->scope;
+    fs->scope = &scope;
+
     bool chunk_finished = stmt_with_semi(fs);
     while (!chunk_finished) {
         chunk_finished = stmt_with_semi(fs);
@@ -400,6 +438,7 @@ static Proto* y_parser(Thread* th, ZIO* z, MBuffer* buff, const char* name)
     FuncState fs;
     fs.ls = &ls;
     fs.proto = nullptr;
+    fs.scope = nullptr;
 
     auto proto = Proto_new(th);
     fs.proto = proto;
@@ -432,6 +471,34 @@ Error protected_parser(Thread* th, ZIO* z, const char* name)
     err = Thread_pcall(th, f_parser, &p);
     MBuffer_free(&p.buff);
     return err;
+}
+
+void Scope_init(Scope* self, Thread* th)
+{
+    self->nr = 0;
+    self->parent = nullptr;
+    self->th = th;
+}
+
+Index Scope_search(Scope* self, const char* name, bool recursive)
+{
+    for (Size i = 0; i < self->nr; i++) {
+        if (self->var_names[i] == name)
+            return i;
+    }
+
+    if (recursive && self->parent)
+        return Scope_search(self->parent, name, recursive);
+
+    return -1;
+}
+
+Index Scope_insert(Scope* self, const char* name)
+{
+    if (self->nr == MAX_VAR_NR)
+        Thread_throw(self->th, E::PARSE, "Too many vars");
+    self->var_names[self->nr++] = name;
+    return self->nr - 1;
 }
 
 } // namespace nf

@@ -54,12 +54,26 @@ struct Table : Object {
     Size node_alloc;
 };
 
+#define MAX_VAR_NR 512
+struct Scope {
+    const char* var_names[MAX_VAR_NR];
+    Size nr;
+    Scope* parent;
+    Thread* th;
+
+    Size var_slots[MAX_VAR_NR];
+};
+
+void Scope_init(Scope* self, Thread*);
+Index Scope_search(Scope* self, const char*, bool recursive = false);
+Index Scope_insert(Scope* self, const char*);
+
 struct Proto : Object {
     Instruction* ins;
     Size ins_nr;
     Size ins_alloc;
 
-    Size var_nr;
+    Size used_slots;
 
     Size const_nr;
     Size const_alloc;

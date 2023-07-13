@@ -22,11 +22,11 @@ Proto* Proto_new(Thread* th)
     proto->ins_nr = 0;
     proto->ins_alloc = 0;
 
-    proto->var_nr = 0;
-
     proto->const_arr = nullptr;
     proto->const_nr = 0;
     proto->const_alloc = 0;
+
+    proto->used_slots = 0;
 
     return proto;
 }
