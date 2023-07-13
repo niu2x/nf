@@ -225,6 +225,9 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
         } else {                                                               \
             Thread_throw(self, E::OP_NUM);                                     \
         }                                                                      \
+    } else if (first->type == Type::String && second->type == first->type) {   \
+        result = { .type = Type::String,                                       \
+            .obj = Str_concat(self, tv2str(first), tv2str(second)) };                \
     } else {                                                                   \
         Thread_throw(self, E::OP_NUM);                                         \
     }                                                                          \
@@ -281,6 +284,12 @@ static void __Thread_run(Thread* self)
                     }
                     case Type::Number: {
                         printf("%lf\n", first->n);
+                        break;
+                    }
+                    case Type::String: {
+                        auto str = obj2str(tv2obj(first));
+                        fwrite(str->base, 1, str->nr, stdout);
+                        printf("\n");
                         break;
                     }
                     default: {

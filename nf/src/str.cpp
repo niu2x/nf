@@ -25,4 +25,9 @@ Str* Str_new(Thread* th, const char* ptr, Size nr)
     return str;
 }
 
+
+Str* Str_concat(Thread* th, Str*, Str*) {
+    
+}
+
 } // namespace nf

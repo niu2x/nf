@@ -151,9 +151,11 @@ struct Thread : Object {
 #define Thread_registry(th) (&(th->global->registry))
 
 #define obj2func(obj) ((Func*)(obj))
+#define obj2str(obj)  ((Str*)(obj))
 #define is_obj(type)
 #define check(cond) true
 #define tv2obj(tv)  (check(is_obj((tv)->type)), (tv)->obj)
+#define tv2str(tv)  obj2str(tv2obj(tv))
 
 } // namespace nf
 
