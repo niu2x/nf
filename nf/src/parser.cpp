@@ -30,6 +30,7 @@ enum TokenType {
     TT_INTEGER,
     TT_NUMBER,
     TT_SYMBOL,
+    TT_STRING,
     TT_PRINT,
 };
 
@@ -158,7 +159,9 @@ static Token next_token(LexState* ls)
                     next_chr(ls);
                     auto str = Str_new(ls->th, buff->data, buff->nr);
 
-                    break;
+                    return Token { .token = TT_ST,
+                            .seminfo = { .s = str } };
+
                 }
 
                 default: {
