@@ -332,6 +332,13 @@ static void __Thread_run(Thread* self)
                 break;
             }
 
+            case Opcode::SET: {
+                auto slot = (Index)INS_ABCDEF(ins);
+                *(self->base + slot) = *(self->top - 1);
+                self->top--;
+                break;
+            }
+
             default: {
                 fprintf(stderr, "unsupport bytecode %u\n", INS_OP(ins));
                 exit(1);

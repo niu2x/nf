@@ -18,6 +18,7 @@ enum class Opcode : uint16_t {
     SET_NIL,
     LOAD_NIL,
     PUSH,
+    SET,
 };
 
 // NO_ARGS(48)_OP(16)

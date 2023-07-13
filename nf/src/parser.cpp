@@ -33,6 +33,7 @@ enum TokenType {
     TT_STRING,
     TT_PRINT,
     TT_LOCAL,
+    TT_EQ,
 };
 
 struct Keyword {
@@ -95,6 +96,15 @@ static Token next_token(LexState* ls)
                 auto c = ls->current;
                 next_chr(ls);
                 return Token { .token = c };
+            }
+
+            case '=': {
+                next_chr(ls);
+                if (ls->current == '=') {
+                    next_chr(ls);
+                    return Token { .token = TT_EQ };
+                } else
+                    return Token { .token = '=' };
             }
 
             case '0':
@@ -383,6 +393,39 @@ static void stmt_local(FuncState* fs)
     next(fs->ls);
 }
 
+static Index left_value(FuncState* fs)
+{
+    auto token = peek(fs->ls);
+
+    Index var_index, slot;
+    auto var_name = token->seminfo.s->base;
+    if ((var_index = Scope_search(fs->scope, var_name)) < 0) {
+        Thread_throw(fs->ls->th, E::PARSE, "undefine var is not left_value");
+    }
+
+    slot = fs->scope->var_slots[var_index];
+
+    next(fs->ls);
+
+    return slot;
+}
+
+static void left_value_action(FuncState* fs, Index left_slot)
+{
+    auto token = peek(fs->ls);
+    switch (token->token) {
+        case '=': {
+            next(fs->ls);
+            expr(fs);
+            emit(fs, INS_FROM_OP_ABCDEF(Opcode::SET, left_slot), -1);
+            break;
+        }
+        default: {
+            Thread_throw(fs->ls->th, E::PARSE, "unsupport left_value_action");
+        }
+    }
+}
+
 static bool stmt(FuncState* fs)
 {
     auto token = peek(fs->ls);
@@ -402,6 +445,12 @@ static bool stmt(FuncState* fs)
         case TT_LOCAL: {
             next(fs->ls);
             stmt_local(fs);
+            break;
+        }
+
+        case TT_SYMBOL: {
+            auto left_slot = left_value(fs);
+            left_value_action(fs, left_slot);
             break;
         }
 
