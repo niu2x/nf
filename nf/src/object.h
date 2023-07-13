@@ -31,6 +31,7 @@ struct TValue {
     };
 };
 
+int TValue_compare(TValue* a, TValue* b);
 NF_INLINE void TValue_set_nil(TValue* tv) { tv->type = Type::NIL; }
 
 struct Str : Object {
@@ -53,6 +54,13 @@ struct Table : Object {
     Node** node_ptr;
     Size node_alloc;
 };
+
+void Table_init(Table* self);
+TValue* Table_set(Thread* th, Table* self, Index index);
+TValue* Table_set(Thread* th, Table* self, TValue* key);
+
+TValue* Table_get(Thread* th, Table* self, Index index);
+TValue* Table_get(Thread* th, Table* self, TValue* key, bool only_hash = false);
 
 #define MAX_VAR_NR 512
 struct Scope {
