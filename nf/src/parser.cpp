@@ -8,7 +8,7 @@
 #include "bytecode.h"
 #include "object.h"
 
-#define printf(...)
+// #define printf(...)
 
 namespace nf {
 
@@ -80,7 +80,7 @@ static Token next_token(LexState* ls)
     }
 
     while (true) {
-        printf("ls->current %d %c\n", ls->current, ls->current);
+        // printf("ls->current %d %c\n", ls->current, ls->current);
         switch (ls->current) {
             case EOF: {
                 next_chr(ls);
@@ -181,13 +181,14 @@ static Token next_token(LexState* ls)
                     MBuffer_reset(buff);
                     MBuffer_append(ls->th, buff, &ch, 1);
                     next_chr(ls);
-                    printf("ls->current %c %d\n", ls->current, ls->current);
+                    // printf("ls->current %c %d\n", ls->current, ls->current);
 
                     while (ls->current == '_' || isalnum(ls->current)) {
                         char ch = ls->current;
                         MBuffer_append(ls->th, buff, &ch, 1);
                         next_chr(ls);
-                        printf("ls->current %c %d\n", ls->current, ls->current);
+                        // printf("ls->current %c %d\n", ls->current,
+                        // ls->current);
                     }
 
                     auto str = Str_new(ls->th, buff->data, buff->nr);
@@ -240,6 +241,8 @@ static NF_INLINE void expect(LexState* ls, int token)
         Thread_throw(ls->th, E::PARSE, "expect error");
     }
 }
+
+static void left_value_action(FuncState* fs, Index left_slot);
 
 static void emit(FuncState* fs, Instruction ins, int slots_changed)
 {
@@ -384,13 +387,23 @@ static void stmt_local(FuncState* fs)
     const char* var_name = token->seminfo.s->base;
 
     Index var_index;
+    Index slot;
     if ((var_index = Scope_search(fs->scope, var_name)) < 0) {
         var_index = Scope_insert(fs->scope, var_name);
-        fs->scope->var_slots[var_index] = fs->proto->used_slots++;
+        slot = fs->proto->used_slots++;
+        fs->scope->var_slots[var_index] = slot;
+    } else {
+        slot = fs->scope->var_slots[var_index];
     }
 
     emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 0);
     next(fs->ls);
+
+    token = peek(fs->ls);
+    printf("slot %d\n", slot);
+    if (token->token == '=') {
+        left_value_action(fs, slot);
+    }
 }
 
 static Index left_value(FuncState* fs)

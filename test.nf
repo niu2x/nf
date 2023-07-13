@@ -16,3 +16,8 @@ local g
 g = 1
 
 print (f + g) / 2.0
+print f/3.0
+
+
+local g = 'hello test'
+print g
