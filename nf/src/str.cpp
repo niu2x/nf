@@ -25,9 +25,14 @@ Str* Str_new(Thread* th, const char* ptr, Size nr)
     return str;
 }
 
+Str* Str_concat(Thread* th, Str* a, Str* b)
+{
+    MBuffer_reset(&(th->tmp_buf));
+    MBuffer_reserve(th, &(th->tmp_buf), a->nr + b->nr + 1);
+    MBuffer_append(th, &(th->tmp_buf), a->base, a->nr);
+    MBuffer_append(th, &(th->tmp_buf), b->base, b->nr);
 
-Str* Str_concat(Thread* th, Str*, Str*) {
-    
+    return Str_new(th, th->tmp_buf.data, a->nr + b->nr);
 }
 
 } // namespace nf

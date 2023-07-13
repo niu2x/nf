@@ -8,6 +8,7 @@
 
 #include "utils.h"
 #include "api.h"
+#include "zio.h"
 #include "basic_types.h"
 
 namespace nf {
@@ -145,6 +146,8 @@ struct Thread : Object {
     Func* func;
 
     char error_msg[ERROR_MSG_NR];
+
+    MBuffer tmp_buf;
 };
 
 #define Thread_global(th)   (th->global)

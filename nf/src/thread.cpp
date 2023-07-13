@@ -86,6 +86,8 @@ static void Thread_init_step_one(Thread* self)
     self->func = nullptr;
 
     self->error_msg[0] = 0;
+
+    MBuffer_init(&(self->tmp_buf));
 }
 
 static void Thread_init_step_two(Thread* self, void* unused)
