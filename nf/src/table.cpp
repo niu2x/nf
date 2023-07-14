@@ -25,7 +25,7 @@ static Hash hash_key(TValue* key)
     }
 }
 
-TValue* Table_set(Thread* th, Table* self, Index index)
+TValue* Table_set(Thread* th, Table* self, Integer index)
 {
     if (index < self->array_alloc) {
         return &(self->array_ptr[index]);
@@ -48,7 +48,7 @@ TValue* Table_set(Thread* th, Table* self, TValue* key, bool only_hash)
         Node** new_node_ptr = NF_ALLOC_ARRAY_P(th, Node*, new_node_alloc);
         memset(new_node_ptr, 0, sizeof(Node*) * new_node_alloc);
 
-        for (Index i = 0; i < self->node_alloc; i++) {
+        for (Size i = 0; i < self->node_alloc; i++) {
             Node* node = self->node_ptr[i];
             while (node) {
                 auto the = node;
@@ -67,7 +67,7 @@ TValue* Table_set(Thread* th, Table* self, TValue* key, bool only_hash)
         self->node_ptr = new_node_ptr;
     }
 
-    Index bucket = hash_key(key) % self->node_alloc;
+    Size bucket = hash_key(key) % self->node_alloc;
     Node* node = self->node_ptr[bucket];
     while (node) {
         if (!TValue_compare(&(node->key), key))
@@ -77,7 +77,7 @@ TValue* Table_set(Thread* th, Table* self, TValue* key, bool only_hash)
 
     node = NF_ALLOC_ARRAY_P(th, Node, 1);
     node->key = *key;
-    node->value = { .type = Type::NIL };
+    node->value = { .type = Type::NIL, .n = 0 };
     node->next = self->node_ptr[bucket];
     self->node_ptr[bucket] = node;
     self->node_count++;
@@ -114,7 +114,7 @@ int TValue_compare(TValue* a, TValue* b)
                 // case Type::Func:
                 //
                 {
-                    auto diff = a->obj == b->obj;
+                    auto diff = a->obj - b->obj;
                     if (diff < 0)
                         return -1;
                     else if (!diff)
@@ -128,7 +128,7 @@ int TValue_compare(TValue* a, TValue* b)
         return ((int)(a->type)) - ((int)(b->type));
 }
 
-TValue* Table_get(Thread* th, Table* self, Index index)
+TValue* Table_get(Thread* th, Table* self, Integer index)
 {
     if (index < self->array_alloc) {
         return &self->array_ptr[index];
@@ -157,7 +157,7 @@ TValue* Table_get(Thread* th, Table* self, TValue* key, bool only_hash)
     if (!self->node_alloc)
         return nullptr;
 
-    Index bucket = hash_key(key) % self->node_alloc;
+    Size bucket = hash_key(key) % self->node_alloc;
     Node* node = self->node_ptr[bucket];
     while (node) {
         if (!TValue_compare(&(node->key), key))

@@ -28,13 +28,14 @@ static void StrTab_init(Thread* th, StrTab* self)
 
     self->buckets = NF_REALLOC_ARRAY_P(th, self->buckets, Str*, 31);
     self->buckets_nr = 31;
-    for (Index i = 0; i < 31; i++)
+    for (int i = 0; i < 31; i++)
         self->buckets[i] = nullptr;
 }
 
 void StrTab_insert(Thread* th, StrTab* self, Str* str)
 {
-    Index bucket_index = str->hash % self->buckets_nr;
+    (void)th;
+    Size bucket_index = str->hash % self->buckets_nr;
     // Str* ptr = self->buckets[bucket_index];
     // while (ptr) {
     //     if (ptr->hash == str->hash && ptr->nr == str->nr) {
@@ -51,7 +52,7 @@ void StrTab_insert(Thread* th, StrTab* self, Str* str)
 
 Str* StrTab_search(StrTab* self, const char* str, Size len, Hash hash)
 {
-    Index bucket_index = hash % self->buckets_nr;
+    Size bucket_index = hash % self->buckets_nr;
     Str* ptr = self->buckets[bucket_index];
     while (ptr) {
         if (ptr->hash == hash && ptr->nr == len) {
@@ -92,6 +93,7 @@ static void Thread_init_step_one(Thread* self)
 
 static void Thread_init_step_two(Thread* self, void* unused)
 {
+    (void)unused;
     Thread_stack_init(self);
 }
 
@@ -167,6 +169,7 @@ struct LoadS {
 
 static const char* LoadS_read(Thread* th, void* ud, size_t* size)
 {
+    (void)th;
     LoadS* self = (LoadS*)ud;
     if (self->size == 0)
         return nullptr;
@@ -208,8 +211,8 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
 // }
 
 #define BIN_OP(_OP_)                                                           \
-    Index first_slot = INS_AB(ins);                                            \
-    Index second_slot = INS_CD(ins);                                           \
+    StackIndex first_slot = INS_AB(ins);                                       \
+    StackIndex second_slot = INS_CD(ins);                                      \
     TValue* second = self->base + second_slot;                                 \
     TValue* first = self->base + first_slot;                                   \
     TValue result;                                                             \
@@ -313,26 +316,26 @@ static void __Thread_run(Thread* self)
             }
 
             case Opcode::CONST: {
-                auto const_index = (Index)INS_AB(ins);
+                auto const_index = (StackIndex)INS_AB(ins);
                 auto* tv = &(self->func->proto->const_arr[const_index]);
                 Thread_push(self, tv);
                 break;
             }
 
             case Opcode::LOAD_NIL: {
-                TValue tv = { .type = Type::NIL };
+                TValue tv = { .type = Type::NIL, .n = 0 };
                 Thread_push(self, &tv);
                 break;
             }
 
             case Opcode::PUSH: {
-                auto slot = (Index)INS_AB(ins);
+                auto slot = (StackIndex)INS_AB(ins);
                 Thread_push(self, (self->base + slot));
                 break;
             }
 
             case Opcode::SET: {
-                auto slot = (Index)INS_AB(ins);
+                auto slot = (StackIndex)INS_AB(ins);
                 *(self->base + slot) = *(self->top - 1);
                 self->top--;
                 break;
@@ -347,8 +350,8 @@ static void __Thread_run(Thread* self)
 
             case Opcode::TABLE_SET: {
                 TValue* value = self->top - 1;
-                auto table_slot = (Index)INS_AB(ins);
-                auto key_slot = (Index)INS_CD(ins);
+                auto table_slot = (StackIndex)INS_AB(ins);
+                auto key_slot = (StackIndex)INS_CD(ins);
                 *Table_set(self, tv2table(self->base + table_slot),
                     self->base + key_slot)
                     = *value;
@@ -359,7 +362,7 @@ static void __Thread_run(Thread* self)
             case Opcode::TABLE_GET: {
                 TValue* key = self->top - 1;
 
-                auto slot = (Index)INS_AB(ins);
+                auto slot = (StackIndex)INS_AB(ins);
 
                 auto value = Table_get(self, tv2table(self->base + slot), key);
                 if (value)
@@ -372,24 +375,24 @@ static void __Thread_run(Thread* self)
 
             case Opcode::POP: {
 
-                auto tmp_nr = (Index)INS_AB(ins);
+                auto tmp_nr = (StackIndex)INS_AB(ins);
                 self->top -= tmp_nr;
 
                 break;
             }
 
             default: {
-                fprintf(stderr, "unsupport bytecode %u\n", INS_OP(ins));
+                fprintf(stderr, "unsupport bytecode %u\n", (int)INS_OP(ins));
                 exit(1);
             }
         }
     }
 }
 
-void Thread_call(Thread* self, Index func_i)
+void Thread_call(Thread* self, StackIndex func_i)
 {
     auto tv_func = stack_slot(self, func_i);
-    Size params_nr = self->top - tv_func - 1;
+    // Size params_nr = self->top - tv_func - 1;
 
     Thread_push_pc(self, self->pc);
     Thread_push_index(self, self->base - self->stack);
@@ -445,6 +448,8 @@ struct LoadFile {
 
 static const char* FILE_read(Thread* th, void* ud, size_t* size)
 {
+    (void)th;
+
     LoadFile* loadf = (LoadFile*)ud;
     if (feof(loadf->fp))
         return nullptr;
@@ -455,7 +460,8 @@ static const char* FILE_read(Thread* th, void* ud, size_t* size)
 
 void Thread_run(Thread* self, FILE* fp)
 {
-    LoadFile load = { .fp = fp };
+    LoadFile load;
+    load.fp = fp;
     auto err = Thread_load(self, FILE_read, &load, "stdin");
     if (E::OK == err) {
         Thread_call(self, -1);
@@ -466,6 +472,8 @@ void Thread_run(Thread* self, FILE* fp)
 
 void Thread_push(Thread* self, TValue* tv)
 {
+    NF_CHECK(self, self->stack_nr + 1 <= MAX_STACK_NR, "stack overflow");
+
     if (self->stack_nr <= (self->top - self->stack)) {
         self->stack = NF_REALLOC_ARRAY_P(
             self, self->stack, TValue, self->stack_nr * 3 / 2 + 16);
@@ -479,13 +487,13 @@ void Thread_push_func(Thread* self, Func* f)
     Thread_push(self, &tv);
 }
 
-void Thread_push_index(Thread* self, Index index)
+void Thread_push_index(Thread* self, StackIndex index)
 {
     TValue tv = { .type = Type::Index, .index = index };
     Thread_push(self, &tv);
 }
 
-Index Thread_pop_index(Thread* self) { return (--self->top)->index; }
+StackIndex Thread_pop_index(Thread* self) { return (--self->top)->index; }
 
 void Thread_push_pc(Thread* self, const Instruction* pc)
 {

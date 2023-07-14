@@ -32,13 +32,13 @@ void Thread_throw(Thread* self, Error err, const char* = nullptr);
 Error Thread_load(Thread* self, const char* buff, Size size, const char* name);
 void Thread_run(Thread*, const char* code);
 void Thread_push(Thread* self, TValue* tv);
-void Thread_push_index(Thread* self, Index index);
+void Thread_push_index(Thread* self, StackIndex index);
 void Thread_push_pc(Thread* self, const Instruction* ins);
 Error Thread_pcall(Thread* self, ProtectedFunc f, void* ud);
 void Thread_push_func(Thread* self, Func* f);
 
 const Instruction* Thread_pop_pc(Thread* self);
-Index Thread_pop_index(Thread* self);
+StackIndex Thread_pop_index(Thread* self);
 
 struct ZIO;
 Error protected_parser(Thread* th, ZIO* z, const char* name);
@@ -64,7 +64,8 @@ Str* StrTab_search(StrTab* self, const char* str, Size len, Hash hash);
 #define NF_REALLOC_ARRAY_P(th, old_ptr, T, nr)                                 \
     (T*)NF_REALLOC_P((th), (old_ptr), (sizeof(T) * (nr)))
 
-#define normalize_stack_index(th, i) ((i) >= 0 ?: ((th)->top - (th)->base + i))
+#define normalize_stack_index(th, i)                                           \
+    ((i) >= 0 ? i : ((th)->top - (th)->base + i))
 #define stack_slot(th, index)                                                  \
     ((th)->base + normalize_stack_index((th), (index)))
 

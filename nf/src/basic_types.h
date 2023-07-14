@@ -27,7 +27,14 @@ using Integer = int64_t;
 using Number = double;
 // static_assert sizeof(Integer) == sizeof(Number)
 
-using Index = int32_t;
+// using Index = int32_t;
+using VarIndex = int16_t;
+using StackIndex = int16_t;
+using ConstIndex = int16_t;
+
+#define MAX_VAR_NR   30000
+#define MAX_CONST_NR 30000
+#define MAX_STACK_NR 30000
 
 using Size = size_t;
 using Instruction = uint64_t;

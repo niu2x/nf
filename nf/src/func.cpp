@@ -28,6 +28,8 @@ Proto* Proto_new(Thread* th)
 
     proto->used_slots = 0;
 
+    proto->name = nullptr;
+
     return proto;
 }
 
@@ -41,9 +43,9 @@ void Proto_append_ins(Thread* th, Proto* self, Instruction ins)
     self->ins[self->ins_nr++] = ins;
 }
 
-Index Proto_insert_const(Thread* th, Proto* self, TValue* v)
+ConstIndex Proto_insert_const(Thread* th, Proto* self, TValue* v)
 {
-    for (Index i = 0; i < self->const_nr; i++) {
+    for (ConstIndex i = 0; i < self->const_nr; i++) {
         auto* v_arr = &(self->const_arr[i]);
         if (v->type == v_arr->type) {
             if (v->i == v_arr->i) {
@@ -52,6 +54,8 @@ Index Proto_insert_const(Thread* th, Proto* self, TValue* v)
         }
     }
 
+    NF_CHECK(th, self->const_nr + 1 <= MAX_CONST_NR, "too may constants");
+
     if (self->const_nr == self->const_alloc) {
         Size new_alloc = (self->const_nr * 3 / 2 + 16);
         self->const_arr
@@ -59,8 +63,6 @@ Index Proto_insert_const(Thread* th, Proto* self, TValue* v)
         self->const_alloc = new_alloc;
     }
     self->const_arr[self->const_nr++] = *v;
-
-    // todo checkout constants count < limit
     return self->const_nr - 1;
 }
 

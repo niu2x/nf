@@ -9,3 +9,9 @@ set(CMAKE_CXX_STANDARD 17)
 add_subdirectory(3rd)
 add_subdirectory(nf)
 
+
+if(${NF_BUILD_TEST})
+	enable_testing()
+	add_subdirectory(tests)
+endif()
+

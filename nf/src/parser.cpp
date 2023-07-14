@@ -22,7 +22,9 @@ union SemInfo {
     Integer i;
     Number n;
     Str* s;
-}; /* semantics information */
+};
+
+static SemInfo null_seminfo = { .s = nullptr };
 
 enum TokenType {
     TT_NONE = 256,
@@ -52,7 +54,7 @@ struct Token {
     SemInfo seminfo;
 };
 
-static Token NONE = { .token = TT_NONE };
+static Token NONE = { .token = TT_NONE, .seminfo = { .s = nullptr } };
 
 struct LexState {
     int current; /* current character (charint) */
@@ -78,10 +80,17 @@ enum class SingleValueType {
 
 struct SingleValue {
     SingleValueType type;
-    Index index;
+    StackIndex index;
 };
+static SingleValue single_value_none
+    = { .type = SingleValueType::NONE, .index = 0 };
 
 #define next_chr(ls) (ls)->current = ZIO_next((ls)->z)
+
+static NF_INLINE Token token_build(int token)
+{
+    return Token { .token = token, .seminfo = null_seminfo };
+}
 
 static Token next_token(LexState* ls)
 {
@@ -95,7 +104,7 @@ static Token next_token(LexState* ls)
         switch (ls->current) {
             case EOF: {
                 next_chr(ls);
-                return Token { .token = TT_EOF };
+                return token_build(TT_EOF);
             }
 
             case ';':
@@ -111,16 +120,16 @@ static Token next_token(LexState* ls)
             case '+': {
                 auto c = ls->current;
                 next_chr(ls);
-                return Token { .token = c };
+                return token_build(c);
             }
 
             case '=': {
                 next_chr(ls);
                 if (ls->current == '=') {
                     next_chr(ls);
-                    return Token { .token = TT_EQ };
+                    return token_build(TT_EQ);
                 } else
-                    return Token { .token = '=' };
+                    return token_build('=');
             }
 
             case '0':
@@ -212,7 +221,7 @@ static Token next_token(LexState* ls)
                     auto keyword = keywords;
                     while (keyword->symbol) {
                         if (!strcmp(keyword->symbol, str->base)) {
-                            return Token { .token = keyword->token };
+                            return token_build(keyword->token);
                         }
                         keyword++;
                     }
@@ -263,8 +272,6 @@ static void assignment(FuncState* fs, SingleValue left_slot);
 
 static void emit(FuncState* fs, Instruction ins, int slots_changed)
 {
-    printf("emit %d %d %d %d\n", INS_OP(ins), INS_AB(ins), INS_CD(ins),
-        slots_changed);
     Proto_append_ins(fs->ls->th, fs->proto, ins);
     fs->proto->used_slots += slots_changed;
 }
@@ -278,6 +285,8 @@ static void emit_const(FuncState* fs, TValue* c)
 
 static SingleValue expr(FuncState* fs);
 static SingleValue single_value(FuncState* fs, SingleValue prev);
+
+#define MAX_USED_SLOT(fs) ((StackIndex)((fs)->proto->used_slots - 1))
 
 static SingleValue const_value(FuncState* fs)
 {
@@ -299,8 +308,7 @@ static SingleValue const_value(FuncState* fs)
             break;
         }
     }
-    return { .type = SingleValueType::NORMAL,
-        .index = fs->proto->used_slots - 1 };
+    return { .type = SingleValueType::NORMAL, .index = MAX_USED_SLOT(fs) };
 }
 
 static SingleValue table_value(FuncState* fs)
@@ -308,8 +316,7 @@ static SingleValue table_value(FuncState* fs)
     next(fs->ls);
     expect(fs->ls, '}');
     emit(fs, INS_FROM_OP_NO_ARGS(Opcode::NEW_TABLE), 1);
-    return { .type = SingleValueType::NORMAL,
-        .index = fs->proto->used_slots - 1 };
+    return { .type = SingleValueType::NORMAL, .index = MAX_USED_SLOT(fs) };
 }
 
 static SingleValue mul_or_div_elem(FuncState* fs)
@@ -322,7 +329,7 @@ static SingleValue mul_or_div_elem(FuncState* fs)
         expect(fs->ls, ')');
 
     } else {
-        value = single_value(fs, { .type = SingleValueType::NONE });
+        value = single_value(fs, single_value_none);
         printf("value %d\n", value.index);
     }
 
@@ -331,8 +338,10 @@ static SingleValue mul_or_div_elem(FuncState* fs)
     } else if (value.type == SingleValueType::TABLE_SLOT) {
         printf("niu2x sssssssss\n");
         emit(fs, INS_FROM_OP_AB(Opcode::TABLE_GET, value.index), 0);
-        return { .type = SingleValueType::NORMAL,
-            .index = fs->proto->used_slots - 1 };
+        return { .type = SingleValueType::NORMAL, .index = MAX_USED_SLOT(fs) };
+    } else {
+        // never reach
+        return value;
     }
 }
 
@@ -362,8 +371,7 @@ static SingleValue add_or_sub_elem(FuncState* fs)
                 goto end_loop;
             }
         }
-        first = { .type = SingleValueType::NORMAL,
-            .index = fs->proto->used_slots - 1 };
+        first = { .type = SingleValueType::NORMAL, .index = MAX_USED_SLOT(fs) };
     }
 end_loop:
 
@@ -397,8 +405,7 @@ static SingleValue expr(FuncState* fs)
             }
         }
 
-        first = { .type = SingleValueType::NORMAL,
-            .index = fs->proto->used_slots - 1 };
+        first = { .type = SingleValueType::NORMAL, .index = MAX_USED_SLOT(fs) };
     }
 end_loop:
 
@@ -429,12 +436,13 @@ static void stmt_local(FuncState* fs)
 
     const char* var_name = token->seminfo.s->base;
 
-    Index var_index;
-    Index slot;
+    VarIndex var_index;
+    StackIndex slot;
+
     if ((var_index = Scope_search(fs->scope, var_name)) < 0) {
         var_index = Scope_insert(fs->scope, var_name);
         slot = fs->proto->used_slots;
-        NF_ASSERT(
+        NF_CHECK(
             fs->ls->th, slot == var_index, "slot should equal to var_index");
         // fs->scope->var_slots[var_index] = slot;
         emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
@@ -487,14 +495,13 @@ static SingleValue single_value(FuncState* fs, SingleValue prev)
     switch (prev.type) {
         case SingleValueType::NONE: {
             if (token->token == TT_SYMBOL) {
-                Index var_index, slot;
+                VarIndex var_index;
+                StackIndex slot;
                 auto var_name = token->seminfo.s->base;
                 if ((var_index = Scope_search(fs->scope, var_name)) < 0) {
                     Thread_throw(
                         fs->ls->th, E::PARSE, "undefine var is not left_value");
                 }
-
-                // slot = fs->scope->var_slots[var_index];
                 slot = var_index;
                 next(fs->ls);
 
@@ -522,34 +529,31 @@ static SingleValue single_value(FuncState* fs, SingleValue prev)
                 return single_value(fs,
                     { .type = SingleValueType::TABLE_SLOT,
                         .index = prev.index });
-            } else {
-                return prev;
             }
-
             break;
         }
         case SingleValueType::TABLE_SLOT: {
             if (token->token == '[') {
                 next(fs->ls);
                 emit(fs, INS_FROM_OP_AB(Opcode::TABLE_GET, prev.index), 0);
-                auto slot = fs->proto->used_slots - 1;
+                auto slot = MAX_USED_SLOT(fs);
                 prev.index = slot;
                 auto key = expr(fs);
                 emit(fs, INS_FROM_OP_AB(Opcode::PUSH, key.index), 1);
                 expect(fs->ls, ']');
                 return single_value(fs, prev);
-            } else {
-                return prev;
             }
 
             break;
         }
     }
+
+    return prev;
 }
 
 static void assignment(FuncState* fs, SingleValue left_value)
 {
-    auto key_slot = fs->proto->used_slots - 1;
+    auto key_slot = MAX_USED_SLOT(fs);
     expect(fs->ls, '=');
     auto result = expr(fs);
     emit(fs, INS_FROM_OP_AB(Opcode::PUSH, result.index), 1);
@@ -586,8 +590,7 @@ static bool stmt(FuncState* fs)
         }
 
         case TT_SYMBOL: {
-            auto left_slot
-                = single_value(fs, { .type = SingleValueType::NONE });
+            auto left_slot = single_value(fs, single_value_none);
             assignment(fs, left_slot);
             break;
         }
@@ -598,8 +601,6 @@ static bool stmt(FuncState* fs)
     }
 
     Size tmp_nr = fs->proto->used_slots - Scope_vars_nr(fs->scope);
-    printf("fs->proto->used_slots %d %d\n", fs->proto->used_slots,
-        Scope_vars_nr(fs->scope));
     emit(fs, INS_FROM_OP_AB(Opcode::POP, tmp_nr), -tmp_nr);
 
     return chunk_finished;
@@ -634,8 +635,8 @@ static Proto* y_parser(Thread* th, ZIO* z, MBuffer* buff, const char* name)
     ls.th = th;
     ls.z = z;
     ls.buff = buff;
-    ls.t = { .token = TT_NONE };
-    ls.peek = { .token = TT_NONE };
+    ls.t = NONE;
+    ls.peek = NONE;
     ls.current = EOF;
 
     FuncState fs;
@@ -645,6 +646,7 @@ static Proto* y_parser(Thread* th, ZIO* z, MBuffer* buff, const char* name)
 
     auto proto = Proto_new(th);
     fs.proto = proto;
+    proto->name = Str_new(th, name, strlen(name));
 
     chunk(&fs);
 
@@ -658,7 +660,6 @@ static void f_parser(Thread* th, void* ud)
     struct Func* func;
     struct SParser* p = (struct SParser*)(ud);
 
-    int c = ZIO_peek(p->z);
     proto = y_parser(th, p->z, &(p->buff), p->name);
     func = Func_new(th, proto);
     Thread_push_func(th, func);
@@ -683,7 +684,7 @@ void Scope_init(Scope* self, Thread* th)
     self->th = th;
 }
 
-Index Scope_search(Scope* self, const char* name, bool recursive)
+VarIndex Scope_search(Scope* self, const char* name, bool recursive)
 {
     for (Size i = 0; i < self->nr; i++) {
         if (self->var_names[i] == name)
@@ -696,10 +697,11 @@ Index Scope_search(Scope* self, const char* name, bool recursive)
     return -1;
 }
 
-Index Scope_insert(Scope* self, const char* name)
+VarIndex Scope_insert(Scope* self, const char* name)
 {
     if (self->nr == MAX_VAR_NR)
         Thread_throw(self->th, E::PARSE, "Too many vars");
+
     self->var_names[self->nr++] = name;
     return self->nr - 1;
 }

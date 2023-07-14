@@ -27,7 +27,7 @@ struct TValue {
 
         Object* obj;
         const Instruction* pc;
-        Index index;
+        StackIndex index;
     };
 };
 
@@ -36,7 +36,7 @@ NF_INLINE void TValue_set_nil(TValue* tv) { tv->type = Type::NIL; }
 
 struct Str : Object {
     char* base;
-    int nr;
+    Size nr;
     Hash hash;
     // Hash sid;
 };
@@ -49,7 +49,7 @@ struct Node {
 
 struct Table : Object {
     TValue* array_ptr;
-    Size array_alloc;
+    Integer array_alloc;
 
     Node** node_ptr;
     Size node_alloc;
@@ -58,13 +58,12 @@ struct Table : Object {
 
 Table* Table_new(Thread* th);
 void Table_init(Table* self);
-TValue* Table_set(Thread* th, Table* self, Index index);
+TValue* Table_set(Thread* th, Table* self, Integer index);
 TValue* Table_set(Thread* th, Table* self, TValue* key, bool only_hash = false);
 
-TValue* Table_get(Thread* th, Table* self, Index index);
+TValue* Table_get(Thread* th, Table* self, Integer index);
 TValue* Table_get(Thread* th, Table* self, TValue* key, bool only_hash = false);
 
-#define MAX_VAR_NR 512
 struct Scope {
     const char* var_names[MAX_VAR_NR];
     Size nr;
@@ -75,8 +74,8 @@ struct Scope {
 };
 
 void Scope_init(Scope* self, Thread*);
-Index Scope_search(Scope* self, const char*, bool recursive = false);
-Index Scope_insert(Scope* self, const char*);
+VarIndex Scope_search(Scope* self, const char*, bool recursive = false);
+VarIndex Scope_insert(Scope* self, const char*);
 NF_INLINE Size Scope_vars_nr(Scope* self) { return self->nr; }
 
 struct Proto : Object {
@@ -84,11 +83,14 @@ struct Proto : Object {
     Size ins_nr;
     Size ins_alloc;
 
-    Size used_slots;
+    StackIndex used_slots;
 
-    Size const_nr;
-    Size const_alloc;
+    ConstIndex const_nr;
+    ConstIndex const_alloc;
+
     TValue* const_arr;
+
+    Str* name;
 };
 
 enum class FuncType {
@@ -113,7 +115,7 @@ struct Func : Object {
 Func* Func_new(Thread* th, Proto* proto);
 Proto* Proto_new(Thread* th);
 void Proto_append_ins(Thread* th, Proto* self, Instruction ins);
-Index Proto_insert_const(Thread* th, Proto* self, TValue* v);
+ConstIndex Proto_insert_const(Thread* th, Proto* self, TValue* v);
 
 struct StrTab {
     Str** buckets;
@@ -159,11 +161,7 @@ struct Thread : Object {
     TValue* base;
 
     TValue* stack;
-    Size stack_nr;
-
-    // CallInfo* ci_base;
-    // Size ci_nr;
-    // CallInfo* ci;
+    StackIndex stack_nr;
 
     TValue gt;
     struct LongJmp* error_jmp; /* current error recover point */
@@ -182,10 +180,7 @@ struct Thread : Object {
 #define obj2str(obj)  ((Str*)(obj))
 #define obj2table(obj) ((Table*)(obj))
 
-#define is_obj(type)
-#define check(cond) true
-
-#define tv2obj(tv)  (check(is_obj((tv)->type)), (tv)->obj)
+#define tv2obj(tv)   ((tv)->obj)
 #define tv2str(tv)  obj2str(tv2obj(tv))
 #define tv2table(tv) obj2table(tv2obj(tv))
 
