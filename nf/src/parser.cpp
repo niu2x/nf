@@ -87,6 +87,7 @@ static Token next_token(LexState* ls)
                 return Token { .token = TT_EOF };
             }
 
+            case ';':
             case '[':
             case ']':
             case '{':
@@ -242,6 +243,7 @@ static NF_INLINE void expect(LexState* ls, int token)
     if (peek(ls)->token == token) {
         next(ls);
     } else {
+        printf("expect %c, it is %d\n", token, peek(ls)->token);
         Thread_throw(ls->th, E::PARSE, "expect error");
     }
 }
@@ -401,6 +403,13 @@ static void stmt_print(FuncState* fs)
     emit(fs, INS_FROM_OP_NO_ARGS(Opcode::PRINT), -1);
 }
 
+static void optional_init_assignment(FuncState* fs) {
+    token = peek(fs->ls);
+    if (token->token == '=') {
+        left_value_action(fs, slot);
+    }
+}
+
 static void stmt_local(FuncState* fs)
 {
     auto token = peek(fs->ls);
@@ -423,11 +432,7 @@ static void stmt_local(FuncState* fs)
     emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 0);
     next(fs->ls);
 
-    token = peek(fs->ls);
-    printf("slot %d\n", slot);
-    if (token->token == '=') {
-        left_value_action(fs, slot);
-    }
+    optional_init_assignment(fs);
 }
 
 static Index left_value(FuncState* fs)
@@ -516,9 +521,8 @@ static bool stmt(FuncState* fs)
 static bool stmt_with_semi(FuncState* fs)
 {
     bool chunk_finished = stmt(fs);
-    if (fs->ls->t.token == ';')
-        next(fs->ls);
-
+    if (!chunk_finished)
+        expect(fs->ls, ';');
     return chunk_finished;
 }
 
