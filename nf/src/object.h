@@ -71,12 +71,13 @@ struct Scope {
     Scope* parent;
     Thread* th;
 
-    Size var_slots[MAX_VAR_NR];
+    // Size var_slots[MAX_VAR_NR];
 };
 
 void Scope_init(Scope* self, Thread*);
 Index Scope_search(Scope* self, const char*, bool recursive = false);
 Index Scope_insert(Scope* self, const char*);
+NF_INLINE Size Scope_vars_nr(Scope* self) { return self->nr; }
 
 struct Proto : Object {
     Instruction* ins;

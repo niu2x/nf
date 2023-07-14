@@ -6,7 +6,6 @@
 namespace nf {
 
 enum class Opcode : uint16_t {
-    // printf niu2x say hello to ff
     TEST = 100,
     RET_0,
     ADD,
@@ -15,13 +14,13 @@ enum class Opcode : uint16_t {
     DIV,
     PRINT,
     CONST,
-    SET_NIL,
     LOAD_NIL,
     PUSH,
     SET,
     NEW_TABLE,
     TABLE_SET,
     TABLE_GET,
+    POP,
 };
 
 // NO_ARGS(48)_OP(16)
@@ -29,12 +28,22 @@ enum class Opcode : uint16_t {
 #define INS_OP(op)              (((Opcode)((op)&0xFFFF)))
 #define INS_ABCDEF(op)          ((op) >> 16)
 #define INS_ABCD(op)            ((op) >> 32)
+#define INS_AB(op)              (((op) >> 48) & 0xFFFF)
+#define INS_CD(op)              (((op) >> 32) & 0xFFFF)
 
 #define INS_FROM_OP_NO_ARGS(op) ((Instruction)(op))
+
 #define INS_FROM_OP_ABCDEF(op, ABCDEF)                                         \
-    INS_FROM_OP_NO_ARGS(op) | (((Instruction)((ABCDEF))) << 16)
+    (INS_FROM_OP_NO_ARGS(op) | (((Instruction)((ABCDEF))) << 16))
 #define INS_FROM_OP_ABCD(op, ABCD)                                             \
-    INS_FROM_OP_NO_ARGS(op) | (((Instruction)((ABCD))) << 32)
+    (INS_FROM_OP_NO_ARGS(op) | (((Instruction)((ABCD))) << 32))
+
+#define INS_FROM_OP_AB(op, AB)                                                 \
+    (INS_FROM_OP_NO_ARGS(op) | (((Instruction)((AB))) << 48))
+
+#define INS_FROM_OP_AB_CD(op, AB, CD)                                          \
+    (INS_FROM_OP_NO_ARGS(op) | (((Instruction)((AB))) << 48)                   \
+        | (((Instruction)((CD))) << 32))
 
 } // namespace nf
 

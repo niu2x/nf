@@ -19,6 +19,7 @@ enum class Error : uint8_t {
     PARSE,
     LOAD,
     OP_NUM,
+    BUG,
 };
 
 using E = Error;

@@ -208,8 +208,10 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
 // }
 
 #define BIN_OP(_OP_)                                                           \
-    TValue* second = self->top - 1;                                            \
-    TValue* first = self->top - 2;                                             \
+    Index first_slot = INS_AB(ins);                                            \
+    Index second_slot = INS_CD(ins);                                           \
+    TValue* second = self->base + second_slot;                                 \
+    TValue* first = self->base + first_slot;                                   \
     TValue result;                                                             \
     if (first->type == Type::Integer) {                                        \
         if (second->type == Type::Integer) {                                   \
@@ -229,12 +231,11 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
         }                                                                      \
     } else if (first->type == Type::String && second->type == first->type) {   \
         result = { .type = Type::String,                                       \
-            .obj = Str_concat(self, tv2str(first), tv2str(second)) };                \
+            .obj = Str_concat(self, tv2str(first), tv2str(second)) };          \
     } else {                                                                   \
         Thread_throw(self, E::OP_NUM);                                         \
     }                                                                          \
-    *(self->top - 2) = result;                                                 \
-    self->top--;
+    Thread_push(self, &result);
 
 static void __Thread_run(Thread* self)
 {
@@ -312,15 +313,9 @@ static void __Thread_run(Thread* self)
             }
 
             case Opcode::CONST: {
-                auto const_index = (Index)INS_ABCDEF(ins);
+                auto const_index = (Index)INS_AB(ins);
                 auto* tv = &(self->func->proto->const_arr[const_index]);
                 Thread_push(self, tv);
-                break;
-            }
-
-            case Opcode::SET_NIL: {
-                auto slot = (Index)INS_ABCDEF(ins);
-                (self->base + slot)->type = Type::NIL;
                 break;
             }
 
@@ -331,13 +326,13 @@ static void __Thread_run(Thread* self)
             }
 
             case Opcode::PUSH: {
-                auto slot = (Index)INS_ABCDEF(ins);
+                auto slot = (Index)INS_AB(ins);
                 Thread_push(self, (self->base + slot));
                 break;
             }
 
             case Opcode::SET: {
-                auto slot = (Index)INS_ABCDEF(ins);
+                auto slot = (Index)INS_AB(ins);
                 *(self->base + slot) = *(self->top - 1);
                 self->top--;
                 break;
@@ -352,23 +347,33 @@ static void __Thread_run(Thread* self)
 
             case Opcode::TABLE_SET: {
                 TValue* value = self->top - 1;
-                TValue* key = self->top - 2;
-                auto slot = (Index)INS_ABCD(ins);
-                *Table_set(self, tv2table(self->base + slot), key) = *value;
-                self->top -= 2;
+                auto table_slot = (Index)INS_AB(ins);
+                auto key_slot = (Index)INS_CD(ins);
+                *Table_set(self, tv2table(self->base + table_slot),
+                    self->base + key_slot)
+                    = *value;
+                self->top -= 1;
                 break;
             }
 
             case Opcode::TABLE_GET: {
                 TValue* key = self->top - 1;
 
-                auto slot = (Index)INS_ABCD(ins);
+                auto slot = (Index)INS_AB(ins);
 
                 auto value = Table_get(self, tv2table(self->base + slot), key);
                 if (value)
                     *(self->top - 1) = *value;
                 else
                     (self->top - 1)->type = Type::NIL;
+
+                break;
+            }
+
+            case Opcode::POP: {
+
+                auto tmp_nr = (Index)INS_AB(ins);
+                self->top -= tmp_nr;
 
                 break;
             }

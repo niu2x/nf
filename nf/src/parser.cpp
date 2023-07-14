@@ -8,7 +8,7 @@
 #include "bytecode.h"
 #include "object.h"
 
-#define printf(...)
+// #define printf(...)
 
 namespace nf {
 
@@ -263,6 +263,8 @@ static void assignment(FuncState* fs, SingleValue left_slot);
 
 static void emit(FuncState* fs, Instruction ins, int slots_changed)
 {
+    printf("emit %d %d %d %d\n", INS_OP(ins), INS_AB(ins), INS_CD(ins),
+        slots_changed);
     Proto_append_ins(fs->ls->th, fs->proto, ins);
     fs->proto->used_slots += slots_changed;
 }
@@ -271,10 +273,10 @@ static void emit_const(FuncState* fs, TValue* c)
 {
     auto const_index = Proto_insert_const(fs->ls->th, fs->proto, c);
     next(fs->ls);
-    emit(fs, INS_FROM_OP_ABCDEF(Opcode::CONST, const_index), 1);
+    emit(fs, INS_FROM_OP_AB(Opcode::CONST, const_index), 1);
 }
 
-static void expr(FuncState* fs);
+static SingleValue expr(FuncState* fs);
 static SingleValue single_value(FuncState* fs, SingleValue prev);
 
 static SingleValue const_value(FuncState* fs)
@@ -310,82 +312,103 @@ static SingleValue table_value(FuncState* fs)
         .index = fs->proto->used_slots - 1 };
 }
 
-static void mul_or_div_elem(FuncState* fs)
+static SingleValue mul_or_div_elem(FuncState* fs)
 {
+    SingleValue value;
     auto token = peek(fs->ls);
     if (token->token == '(') {
         next(fs->ls);
-        expr(fs);
+        value = expr(fs);
         expect(fs->ls, ')');
+
     } else {
-        auto value = single_value(fs, { .type = SingleValueType::NONE });
-        if (value.type == SingleValueType::NORMAL) {
-            emit(fs, INS_FROM_OP_ABCDEF(Opcode::PUSH, value.index), 1);
-        } else if (value.type == SingleValueType::TABLE_SLOT) {
-            emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_GET, value.index), 0);
-        }
+        value = single_value(fs, { .type = SingleValueType::NONE });
+        printf("value %d\n", value.index);
+    }
+
+    if (value.type == SingleValueType::NORMAL) {
+        return value;
+    } else if (value.type == SingleValueType::TABLE_SLOT) {
+        printf("niu2x sssssssss\n");
+        emit(fs, INS_FROM_OP_AB(Opcode::TABLE_GET, value.index), 0);
+        return { .type = SingleValueType::NORMAL,
+            .index = fs->proto->used_slots - 1 };
     }
 }
 
-static void add_or_sub_elem(FuncState* fs)
+static SingleValue add_or_sub_elem(FuncState* fs)
 {
-    mul_or_div_elem(fs);
+    auto first = mul_or_div_elem(fs);
     while (true) {
         auto token = peek(fs->ls);
         switch (token->token) {
             case '*': {
                 next(fs->ls);
-                mul_or_div_elem(fs);
-                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::MUL), -1);
+                auto second = mul_or_div_elem(fs);
+                emit(fs,
+                    INS_FROM_OP_AB_CD(Opcode::MUL, first.index, second.index),
+                    1);
                 break;
             }
             case '/': {
                 next(fs->ls);
-                mul_or_div_elem(fs);
-                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::DIV), -1);
+                auto second = mul_or_div_elem(fs);
+                emit(fs,
+                    INS_FROM_OP_AB_CD(Opcode::DIV, first.index, second.index),
+                    1);
                 break;
             }
             default: {
                 goto end_loop;
             }
         }
+        first = { .type = SingleValueType::NORMAL,
+            .index = fs->proto->used_slots - 1 };
     }
 end_loop:
 
-    (void)0;
+    return first;
 }
 
-static void expr(FuncState* fs)
+static SingleValue expr(FuncState* fs)
 {
-    add_or_sub_elem(fs);
+    auto first = add_or_sub_elem(fs);
     while (true) {
         auto token = peek(fs->ls);
         switch (token->token) {
             case '+': {
                 next(fs->ls);
-                add_or_sub_elem(fs);
-                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::ADD), -1);
+                auto second = add_or_sub_elem(fs);
+                emit(fs,
+                    INS_FROM_OP_AB_CD(Opcode::ADD, first.index, second.index),
+                    1);
                 break;
             }
             case '-': {
                 next(fs->ls);
-                add_or_sub_elem(fs);
-                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::SUB), -1);
+                auto second = add_or_sub_elem(fs);
+                emit(fs,
+                    INS_FROM_OP_AB_CD(Opcode::SUB, first.index, second.index),
+                    1);
                 break;
             }
             default: {
                 goto end_loop;
             }
         }
+
+        first = { .type = SingleValueType::NORMAL,
+            .index = fs->proto->used_slots - 1 };
     }
 end_loop:
 
-    (void)0;
+    return first;
 }
 
 static void stmt_print(FuncState* fs)
 {
-    expr(fs);
+    auto result = expr(fs);
+    emit(fs, INS_FROM_OP_AB(Opcode::PUSH, result.index), 1);
     emit(fs, INS_FROM_OP_NO_ARGS(Opcode::PRINT), -1);
 }
 
@@ -410,13 +433,17 @@ static void stmt_local(FuncState* fs)
     Index slot;
     if ((var_index = Scope_search(fs->scope, var_name)) < 0) {
         var_index = Scope_insert(fs->scope, var_name);
-        slot = fs->proto->used_slots++;
-        fs->scope->var_slots[var_index] = slot;
+        slot = fs->proto->used_slots;
+        NF_ASSERT(
+            fs->ls->th, slot == var_index, "slot should equal to var_index");
+        // fs->scope->var_slots[var_index] = slot;
+        emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
+
     } else {
-        slot = fs->scope->var_slots[var_index];
+        // slot = fs->scope->var_slots[var_index];
+        slot = var_index;
     }
 
-    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 0);
     next(fs->ls);
 
     optional_init_assignment(
@@ -440,7 +467,7 @@ static void stmt_local(FuncState* fs)
 //                 next(fs->ls);
 //                 expr(fs);
 //                 expect(fs->ls, ']');
-//                 emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_GET, slot), 0);
+//                 emit(fs, INS_FROM_OP_AB(Opcode::TABLE_GET, slot), 0);
 //             } else {
 //                 emit(fs, INS_FROM_OP_ABCDEF(Opcode::PUSH, slot), 1);
 //             }
@@ -467,7 +494,8 @@ static SingleValue single_value(FuncState* fs, SingleValue prev)
                         fs->ls->th, E::PARSE, "undefine var is not left_value");
                 }
 
-                slot = fs->scope->var_slots[var_index];
+                // slot = fs->scope->var_slots[var_index];
+                slot = var_index;
                 next(fs->ls);
 
                 return single_value(
@@ -488,7 +516,8 @@ static SingleValue single_value(FuncState* fs, SingleValue prev)
         case SingleValueType::NORMAL: {
             if (token->token == '[') {
                 next(fs->ls);
-                expr(fs);
+                auto key = expr(fs);
+                emit(fs, INS_FROM_OP_AB(Opcode::PUSH, key.index), 1);
                 expect(fs->ls, ']');
                 return single_value(fs,
                     { .type = SingleValueType::TABLE_SLOT,
@@ -502,10 +531,11 @@ static SingleValue single_value(FuncState* fs, SingleValue prev)
         case SingleValueType::TABLE_SLOT: {
             if (token->token == '[') {
                 next(fs->ls);
-                emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_GET, prev.index), 0);
+                emit(fs, INS_FROM_OP_AB(Opcode::TABLE_GET, prev.index), 0);
                 auto slot = fs->proto->used_slots - 1;
                 prev.index = slot;
-                expr(fs);
+                auto key = expr(fs);
+                emit(fs, INS_FROM_OP_AB(Opcode::PUSH, key.index), 1);
                 expect(fs->ls, ']');
                 return single_value(fs, prev);
             } else {
@@ -519,14 +549,17 @@ static SingleValue single_value(FuncState* fs, SingleValue prev)
 
 static void assignment(FuncState* fs, SingleValue left_value)
 {
+    auto key_slot = fs->proto->used_slots - 1;
     expect(fs->ls, '=');
-    expr(fs);
+    auto result = expr(fs);
+    emit(fs, INS_FROM_OP_AB(Opcode::PUSH, result.index), 1);
+
     if (left_value.type == SingleValueType::NORMAL) {
-        emit(fs, INS_FROM_OP_ABCDEF(Opcode::SET, left_value.index), -1);
+        emit(fs, INS_FROM_OP_AB(Opcode::SET, left_value.index), -1);
     } else if (left_value.type == SingleValueType::TABLE_SLOT) {
-        printf("-left_slot-1 %016x\n",
-            INS_FROM_OP_ABCD(Opcode::TABLE_SET, left_value.index));
-        emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_SET, left_value.index), -2);
+        emit(fs,
+            INS_FROM_OP_AB_CD(Opcode::TABLE_SET, left_value.index, key_slot),
+            -1);
     }
 }
 
@@ -563,6 +596,11 @@ static bool stmt(FuncState* fs)
             Thread_throw(fs->ls->th, E::PARSE, "when stmt, unexpected token");
         }
     }
+
+    Size tmp_nr = fs->proto->used_slots - Scope_vars_nr(fs->scope);
+    printf("fs->proto->used_slots %d %d\n", fs->proto->used_slots,
+        Scope_vars_nr(fs->scope));
+    emit(fs, INS_FROM_OP_AB(Opcode::POP, tmp_nr), -tmp_nr);
 
     return chunk_finished;
 }

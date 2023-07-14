@@ -33,4 +33,8 @@ void die(const char* fmt, ...);
 //     ptr->~T();
 // }
 
+#define NF_ASSERT(th, cond, message)                                           \
+    if (!(cond))                                                               \
+        Thread_throw(th, E::BUG, message);
+
 #endif
