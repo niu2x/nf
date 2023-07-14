@@ -20,6 +20,8 @@ print g;
 local t = {};
 t[0] = 2;
 t[1] = 22;
+t[2] = {};
 print t;
 print t[0];
 print t[1] + t[0];
+print t[2][3];

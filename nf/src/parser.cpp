@@ -8,7 +8,7 @@
 #include "bytecode.h"
 #include "object.h"
 
-// #define printf(...)
+#define printf(...)
 
 namespace nf {
 
@@ -68,6 +68,17 @@ struct FuncState {
     LexState* ls;
     Proto* proto;
     Scope* scope;
+};
+
+enum class SingleValueType {
+    NONE,
+    NORMAL,
+    TABLE_SLOT,
+};
+
+struct SingleValue {
+    SingleValueType type;
+    Index index;
 };
 
 #define next_chr(ls) (ls)->current = ZIO_next((ls)->z)
@@ -248,7 +259,7 @@ static NF_INLINE void expect(LexState* ls, int token)
     }
 }
 
-static void left_value_action(FuncState* fs, Index left_slot);
+static void assignment(FuncState* fs, SingleValue left_slot);
 
 static void emit(FuncState* fs, Instruction ins, int slots_changed)
 {
@@ -264,8 +275,9 @@ static void emit_const(FuncState* fs, TValue* c)
 }
 
 static void expr(FuncState* fs);
+static SingleValue single_value(FuncState* fs, SingleValue prev);
 
-static void const_value(FuncState* fs)
+static SingleValue const_value(FuncState* fs)
 {
     auto token = peek(fs->ls);
     switch (token->token) {
@@ -284,49 +296,18 @@ static void const_value(FuncState* fs)
             emit_const(fs, &value);
             break;
         }
-        default: {
-            printf("token->token %d\n", token->token);
-            Thread_throw(
-                fs->ls->th, E::PARSE, "when const_value, unexpected token");
-        }
     }
+    return { .type = SingleValueType::NORMAL,
+        .index = fs->proto->used_slots - 1 };
 }
 
-static void table_value(FuncState* fs)
+static SingleValue table_value(FuncState* fs)
 {
     next(fs->ls);
     expect(fs->ls, '}');
     emit(fs, INS_FROM_OP_NO_ARGS(Opcode::NEW_TABLE), 1);
-}
-
-static void single_value(FuncState* fs)
-{
-    auto token = peek(fs->ls);
-    if (token->token == TT_SYMBOL) {
-        Index var_index = Scope_search(fs->scope, token->seminfo.s->base);
-        if (var_index < 0) {
-            emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
-            next(fs->ls);
-        } else {
-            auto slot = fs->scope->var_slots[var_index];
-            next(fs->ls);
-            token = peek(fs->ls);
-
-            if (token->token == '[') {
-                next(fs->ls);
-                expr(fs);
-                expect(fs->ls, ']');
-                emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_GET, slot), 0);
-            } else {
-                emit(fs, INS_FROM_OP_ABCDEF(Opcode::PUSH, slot), 1);
-            }
-        }
-
-    } else if (token->token == '{') {
-        table_value(fs);
-    } else {
-        const_value(fs);
-    }
+    return { .type = SingleValueType::NORMAL,
+        .index = fs->proto->used_slots - 1 };
 }
 
 static void mul_or_div_elem(FuncState* fs)
@@ -337,7 +318,12 @@ static void mul_or_div_elem(FuncState* fs)
         expr(fs);
         expect(fs->ls, ')');
     } else {
-        single_value(fs);
+        auto value = single_value(fs, { .type = SingleValueType::NONE });
+        if (value.type == SingleValueType::NORMAL) {
+            emit(fs, INS_FROM_OP_ABCDEF(Opcode::PUSH, value.index), 1);
+        } else if (value.type == SingleValueType::TABLE_SLOT) {
+            emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_GET, value.index), 0);
+        }
     }
 }
 
@@ -403,10 +389,11 @@ static void stmt_print(FuncState* fs)
     emit(fs, INS_FROM_OP_NO_ARGS(Opcode::PRINT), -1);
 }
 
-static void optional_init_assignment(FuncState* fs) {
-    token = peek(fs->ls);
+static void optional_init_assignment(FuncState* fs, SingleValue left_value)
+{
+    auto token = peek(fs->ls);
     if (token->token == '=') {
-        left_value_action(fs, slot);
+        assignment(fs, left_value);
     }
 }
 
@@ -432,53 +419,114 @@ static void stmt_local(FuncState* fs)
     emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 0);
     next(fs->ls);
 
-    optional_init_assignment(fs);
+    optional_init_assignment(
+        fs, { .type = SingleValueType::NORMAL, .index = slot });
 }
 
-static Index left_value(FuncState* fs)
+// static void single_value(FuncState* fs)
+// {
+//     auto token = peek(fs->ls);
+//     if (token->token == TT_SYMBOL) {
+//         Index var_index = Scope_search(fs->scope, token->seminfo.s->base);
+//         if (var_index < 0) {
+//             emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
+//             next(fs->ls);
+//         } else {
+//             auto slot = fs->scope->var_slots[var_index];
+//             next(fs->ls);
+//             token = peek(fs->ls);
+
+//             if (token->token == '[') {
+//                 next(fs->ls);
+//                 expr(fs);
+//                 expect(fs->ls, ']');
+//                 emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_GET, slot), 0);
+//             } else {
+//                 emit(fs, INS_FROM_OP_ABCDEF(Opcode::PUSH, slot), 1);
+//             }
+//         }
+
+//     } else if (token->token == '{') {
+//         table_value(fs);
+//     } else {
+//         const_value(fs);
+//     }
+// }
+
+static SingleValue single_value(FuncState* fs, SingleValue prev)
 {
     auto token = peek(fs->ls);
 
-    Index var_index, slot;
-    auto var_name = token->seminfo.s->base;
-    if ((var_index = Scope_search(fs->scope, var_name)) < 0) {
-        Thread_throw(fs->ls->th, E::PARSE, "undefine var is not left_value");
-    }
+    switch (prev.type) {
+        case SingleValueType::NONE: {
+            if (token->token == TT_SYMBOL) {
+                Index var_index, slot;
+                auto var_name = token->seminfo.s->base;
+                if ((var_index = Scope_search(fs->scope, var_name)) < 0) {
+                    Thread_throw(
+                        fs->ls->th, E::PARSE, "undefine var is not left_value");
+                }
 
-    slot = fs->scope->var_slots[var_index];
-    next(fs->ls);
+                slot = fs->scope->var_slots[var_index];
+                next(fs->ls);
 
-    token = peek(fs->ls);
-    if (token->token == '[') {
-        next(fs->ls);
-        expr(fs);
-        expect(fs->ls, ']');
-        return -slot - 1;
-    } else {
-        return slot;
-    }
-}
-
-static void left_value_action(FuncState* fs, Index left_slot)
-{
-    auto token = peek(fs->ls);
-    switch (token->token) {
-        case '=': {
-            next(fs->ls);
-            expr(fs);
-            if (left_slot >= 0) {
-                emit(fs, INS_FROM_OP_ABCDEF(Opcode::SET, left_slot), -1);
+                return single_value(
+                    fs, { .type = SingleValueType::NORMAL, .index = slot });
+            } else if (token->token == '{') {
+                return single_value(fs, table_value(fs));
+            } else if (token->token == TT_INTEGER || token->token == TT_NUMBER
+                || token->token == TT_STRING) {
+                return single_value(fs, const_value(fs));
             } else {
-                printf("-left_slot-1 %016x\n",
-                    INS_FROM_OP_ABCD(Opcode::TABLE_SET, -left_slot - 1));
-                emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_SET, -left_slot - 1),
-                    -2);
+                Thread_throw(
+                    fs->ls->th, E::PARSE, "when parse left_value error");
             }
+
             break;
         }
-        default: {
-            Thread_throw(fs->ls->th, E::PARSE, "unsupport left_value_action");
+
+        case SingleValueType::NORMAL: {
+            if (token->token == '[') {
+                next(fs->ls);
+                expr(fs);
+                expect(fs->ls, ']');
+                return single_value(fs,
+                    { .type = SingleValueType::TABLE_SLOT,
+                        .index = prev.index });
+            } else {
+                return prev;
+            }
+
+            break;
         }
+        case SingleValueType::TABLE_SLOT: {
+            if (token->token == '[') {
+                next(fs->ls);
+                emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_GET, prev.index), 0);
+                auto slot = fs->proto->used_slots - 1;
+                prev.index = slot;
+                expr(fs);
+                expect(fs->ls, ']');
+                return single_value(fs, prev);
+            } else {
+                return prev;
+            }
+
+            break;
+        }
+    }
+}
+
+static void assignment(FuncState* fs, SingleValue left_value)
+{
+    expect(fs->ls, '=');
+    expr(fs);
+    if (left_value.type == SingleValueType::NORMAL) {
+        emit(fs, INS_FROM_OP_ABCDEF(Opcode::SET, left_value.index), -1);
+    } else if (left_value.type == SingleValueType::TABLE_SLOT) {
+        printf("-left_slot-1 %016x\n",
+            INS_FROM_OP_ABCD(Opcode::TABLE_SET, left_value.index));
+        emit(fs, INS_FROM_OP_ABCD(Opcode::TABLE_SET, left_value.index), -2);
     }
 }
 
@@ -505,8 +553,9 @@ static bool stmt(FuncState* fs)
         }
 
         case TT_SYMBOL: {
-            auto left_slot = left_value(fs);
-            left_value_action(fs, left_slot);
+            auto left_slot
+                = single_value(fs, { .type = SingleValueType::NONE });
+            assignment(fs, left_slot);
             break;
         }
 
