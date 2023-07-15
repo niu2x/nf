@@ -112,6 +112,7 @@ struct Func : Object {
 };
 
 Func* Func_new(Thread* th, Proto* proto);
+Func* Func_new(Thread* th, CFunc cfunc);
 Proto* Proto_new(Thread* th);
 void Proto_append_ins(Thread* th, Proto* self, Instruction ins);
 ConstIndex Proto_insert_const(Thread* th, Proto* self, TValue* v);

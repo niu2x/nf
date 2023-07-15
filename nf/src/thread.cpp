@@ -243,6 +243,16 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
     }                                                                          \
     Thread_push(self, &result);
 
+static void __Thread_return(Thread* self)
+{
+
+    self->top = self->base;
+    self->top = Thread_pop_index(self) + self->stack;
+    self->base = Thread_pop_index(self) + self->stack;
+    self->pc = Thread_pop_pc(self);
+    self->func = self->func->prev;
+}
+
 static void __Thread_run(Thread* self)
 {
     while (self->pc) {
@@ -253,14 +263,7 @@ static void __Thread_run(Thread* self)
                 break;
             }
             case Opcode::RET_0: {
-                self->top = self->base;
-
-                self->top = Thread_pop_index(self) + self->stack;
-                self->base = Thread_pop_index(self) + self->stack;
-                self->pc = Thread_pop_pc(self);
-                self->func = self->func->prev;
-
-                break;
+                return;
             }
 
             case Opcode::ADD: {
@@ -372,7 +375,6 @@ static void __Thread_run(Thread* self)
                     *(self->top - 1) = *value;
                 else
                     (self->top - 1)->type = Type::NIL;
-
                 break;
             }
 
@@ -431,7 +433,6 @@ static void __Thread_run(Thread* self)
 void Thread_call(Thread* self, StackIndex func_i)
 {
     auto tv_func = stack_slot(self, func_i);
-    // Size params_nr = self->top - tv_func - 1;
 
     Thread_push_pc(self, self->pc);
     Thread_push_index(self, self->base - self->stack);
@@ -440,12 +441,17 @@ void Thread_call(Thread* self, StackIndex func_i)
     auto func = obj2func(tv2obj(tv_func));
 
     self->base = self->top;
-    self->pc = func->proto->ins;
-
     func->prev = self->func;
     self->func = func;
 
-    __Thread_run(self);
+    if (func->func_type == FuncType::NF) {
+        self->pc = func->proto->ins;
+        __Thread_run(self);
+    } else {
+        auto c_func = func->c_func;
+        c_func(self);
+    }
+    __Thread_return(self);
 }
 
 Error Thread_pcall(Thread* self, ProtectedFunc f, void* ud)

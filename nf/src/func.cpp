@@ -14,6 +14,16 @@ Func* Func_new(Thread* th, Proto* proto)
     return func;
 }
 
+Func* Func_new(Thread* th, CFunc c_func)
+{
+    auto func = NF_ALLOC_ARRAY_P(th, Func, 1);
+    func->type = Type::Func;
+    func->func_type = FuncType::C;
+    func->c_func = c_func;
+    func->prev = nullptr;
+    return func;
+}
+
 Proto* Proto_new(Thread* th)
 {
     auto proto = NF_ALLOC_ARRAY_P(th, Proto, 1);

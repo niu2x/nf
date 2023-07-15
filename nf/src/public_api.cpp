@@ -77,7 +77,6 @@ StackIndex top(ThreadPtr self)
 
 void new_str_fmt(ThreadPtr self, const char* fmt, ...)
 {
-
     auto th = (Thread*)self;
     va_list ap;
     va_start(ap, fmt);
@@ -87,6 +86,12 @@ void new_str_fmt(ThreadPtr self, const char* fmt, ...)
     };
     Thread_push(th, &v);
     va_end(ap);
+}
+
+void push_func(ThreadPtr self, CFunc c_func)
+{
+    auto th = (Thread*)self;
+    Thread_push_func(th, Func_new(th, c_func));
 }
 
 } // namespace nf

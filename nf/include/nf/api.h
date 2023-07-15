@@ -11,7 +11,9 @@ enum PseudoIndex {
     PSEUDO_INDEX_GLOBAL = -30005,
 };
 
-using ThreadPtr = void*;
+struct Thread;
+using ThreadPtr = Thread*;
+using CFunc = int (*)(ThreadPtr* self);
 
 ThreadPtr open();
 void close(ThreadPtr);
@@ -27,6 +29,7 @@ void set_table(ThreadPtr self, StackIndex table, StackIndex key);
 void pop(ThreadPtr self, StackIndex n);
 void set_top(ThreadPtr self, StackIndex top);
 StackIndex top(ThreadPtr self);
+void push_func(ThreadPtr self, CFunc func);
 
 } // namespace nf
 
