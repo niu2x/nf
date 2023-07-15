@@ -5,14 +5,14 @@
 
 namespace nf::imp {
 
-// Str* Str_new_fmt(Thread* th, const char* fmt, ...)
-// {
-//     va_list ap;
-//     va_start(ap, fmt);
-//     auto s = Str_new_fmt(th, fmt, ap);
-//     va_end(ap);
-//     return s;
-// }
+Str* Str_new_fmt(Thread* th, const char* fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    auto s = Str_new_fmt(th, fmt, ap);
+    va_end(ap);
+    return s;
+}
 
 Str* Str_new_fmt(Thread* th, const char* fmt, va_list ap)
 {

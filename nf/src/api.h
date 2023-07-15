@@ -52,7 +52,7 @@ Error protected_parser(Thread* th, ZIO* z, const char* name);
 
 struct Str;
 Str* Str_new(Thread* th, const char* ptr, Size nr);
-// Str* Str_new_fmt(Thread* th, const char* fmt, ...);
+Str* Str_new_fmt(Thread* th, const char* fmt, ...);
 Str* Str_new_fmt(Thread* th, const char* fmt, va_list);
 Str* Str_concat(Thread* th, Str*, Str*);
 
