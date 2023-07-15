@@ -381,6 +381,42 @@ static void __Thread_run(Thread* self)
                 break;
             }
 
+            case Opcode::NEG: {
+                auto v = (StackIndex)INS_AB(ins) + self->base;
+                TValue result = *v;
+                switch (v->type) {
+                    case Type::Integer: {
+                        result.i = -v->i;
+                        break;
+                    }
+                    case Type::Number: {
+                        result.n = -v->n;
+                        break;
+                    }
+                    default: {
+                        Thread_throw(self, E::OP_NUM, "unsupport neg");
+                    }
+                }
+                Thread_push(self, &result);
+                break;
+            }
+            case Opcode::LEN: {
+                auto v = (StackIndex)INS_AB(ins) + self->base;
+                TValue result = { .type = Type::Integer, .i = 0 };
+                switch (v->type) {
+                    case Type::String: {
+                        result.i = tv2str(v)->nr;
+                        break;
+                    }
+                    default: {
+                        Thread_throw(self, E::OP_NUM, "unsupport neg");
+                    }
+                }
+                Thread_push(self, &result);
+
+                break;
+            }
+
             default: {
                 fprintf(stderr, "unsupport bytecode %u\n", (int)INS_OP(ins));
                 exit(1);

@@ -21,6 +21,8 @@ enum class Opcode : uint16_t {
     TABLE_SET,
     TABLE_GET,
     POP,
+    LEN,
+    NEG,
 };
 
 // NO_ARGS(48)_OP(16)

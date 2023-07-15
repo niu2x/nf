@@ -107,6 +107,7 @@ static Token next_token(LexState* ls)
                 return token_build(TT_EOF);
             }
 
+            case '#':
             case ';':
             case '[':
             case ']':
@@ -319,7 +320,7 @@ static SingleValue table_value(FuncState* fs)
     return { .type = SingleValueType::NORMAL, .index = MAX_USED_SLOT(fs) };
 }
 
-static SingleValue mul_or_div_elem(FuncState* fs)
+static SingleValue operand(FuncState* fs)
 {
     SingleValue value;
     auto token = peek(fs->ls);
@@ -343,6 +344,25 @@ static SingleValue mul_or_div_elem(FuncState* fs)
         // never reach
         return value;
     }
+}
+
+static SingleValue mul_or_div_elem(FuncState* fs)
+{
+    auto token = peek(fs->ls);
+    int operation = TT_NONE;
+    if (token->token == '#' || token->token == '-') {
+        operation = token->token;
+        next(fs->ls);
+    }
+
+    auto value = operand(fs);
+    if (operation == '#') {
+        emit(fs, INS_FROM_OP_AB(Opcode::LEN, value.index), 1);
+    } else if (operation == '-') {
+        emit(fs, INS_FROM_OP_AB(Opcode::NEG, value.index), 1);
+    }
+    value.index = MAX_USED_SLOT(fs);
+    return value;
 }
 
 static SingleValue add_or_sub_elem(FuncState* fs)
