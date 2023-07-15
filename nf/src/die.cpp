@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-namespace nf {
+namespace nf::imp {
 void die(const char* fmt, ...)
 {
     va_list args;
@@ -14,4 +14,4 @@ void die(const char* fmt, ...)
     fprintf(stderr, "\n");
     exit(1);
 }
-} // namespace nf
+} // namespace nf::imp

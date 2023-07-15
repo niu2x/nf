@@ -28,3 +28,4 @@ print t[1] + t[0];
 print(t[2][0]);
 print -2;
 print #(t[2][0]);
+print(nf['version']);

@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <new>
 
-namespace nf {
+namespace nf::imp {
 
 void die(const char* fmt, ...);
 }

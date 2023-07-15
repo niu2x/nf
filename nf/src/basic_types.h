@@ -3,8 +3,11 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <nf/api.h>
+
 #include "utils.h"
-namespace nf {
+
+namespace nf::imp {
 
 enum class Type : uint8_t {
     NIL,
@@ -29,12 +32,14 @@ using Number = double;
 
 // using Index = int32_t;
 using VarIndex = int16_t;
-using StackIndex = int16_t;
 using ConstIndex = int16_t;
 
 #define MAX_VAR_NR   30000
 #define MAX_CONST_NR 30000
 #define MAX_STACK_NR 30000
+
+using StackIndex = nf::StackIndex;
+using PseudoIndex = nf::PseudoIndex;
 
 using Size = size_t;
 using Instruction = uint64_t;
@@ -70,6 +75,6 @@ NF_INLINE int32_t u2i32(uint32_t u)
     return un.i;
 };
 
-} // namespace nf
+} // namespace nf::imp
 
 #endif

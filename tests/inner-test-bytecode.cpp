@@ -5,7 +5,7 @@
 #include "basic_types.h"
 #include "bytecode.h"
 
-namespace nf {
+namespace nf::imp {
 
 TEST(Instruction, build)
 {
@@ -14,4 +14,4 @@ TEST(Instruction, build)
     EXPECT_EQ(INS_FROM_OP_AB_CD(0xF1F2, 0xF1FB, 0xB1B2), 0xF1FBB1B20000F1F2);
 }
 
-} // namespace nf
+} // namespace nf::imp

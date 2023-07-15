@@ -5,7 +5,7 @@
 #include "utils.h"
 #include "api.h"
 
-namespace nf {
+namespace nf::imp {
 
 struct MBuffer {
     char* data;
@@ -47,6 +47,6 @@ int ZIO_next(ZIO* z);
 int ZIO_fill(ZIO* z);
 Size ZIO_read(ZIO* z, void* b, Size n);
 
-} // namespace nf
+} // namespace nf::imp
 
 #endif

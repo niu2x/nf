@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 
-namespace nf {
+namespace nf::imp {
 
 void ZIO_init(Thread* th, ZIO* z, Reader reader, void* data)
 {
@@ -67,4 +67,4 @@ Size ZIO_read(ZIO* self, void* b, Size n)
     return 0;
 }
 
-} // namespace nf
+} // namespace nf::imp

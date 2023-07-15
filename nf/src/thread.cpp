@@ -8,7 +8,7 @@
 #include "zio.h"
 #include "bytecode.h"
 
-namespace nf {
+namespace nf::imp {
 
 const Size basic_ci_nr = 8;
 const Size basic_stack_nr = 32;
@@ -95,12 +95,21 @@ static void Thread_init_step_two(Thread* self, void* unused)
 {
     (void)unused;
     Thread_stack_init(self);
+
+    auto table = Table_new(self);
+    TValue_set_table(Thread_registry(self), table);
 }
 
 struct Twin {
     Thread thread;
     GlobalState global;
 };
+
+void Thread_close(Thread* self)
+{
+    NF_FREE(self->stack);
+    NF_FREE(self);
+}
 
 Thread* Thread_open()
 {
@@ -120,12 +129,6 @@ Thread* Thread_open()
     }
 
     return self;
-}
-
-void Thread_close(Thread* self)
-{
-    NF_FREE(self->stack);
-    NF_FREE(self);
 }
 
 Error Thread_run_protected(Thread* self, ProtectedFunc f, void* ud)
@@ -213,8 +216,8 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
 #define BIN_OP(_OP_)                                                           \
     StackIndex first_slot = INS_AB(ins);                                       \
     StackIndex second_slot = INS_CD(ins);                                      \
-    TValue* second = self->base + second_slot;                                 \
-    TValue* first = self->base + first_slot;                                   \
+    TValue* second = stack_slot(self, second_slot);                            \
+    TValue* first = stack_slot(self, first_slot);                              \
     TValue result;                                                             \
     if (first->type == Type::Integer) {                                        \
         if (second->type == Type::Integer) {                                   \
@@ -330,13 +333,13 @@ static void __Thread_run(Thread* self)
 
             case Opcode::PUSH: {
                 auto slot = (StackIndex)INS_AB(ins);
-                Thread_push(self, (self->base + slot));
+                Thread_push(self, (stack_slot(self, slot)));
                 break;
             }
 
             case Opcode::SET: {
                 auto slot = (StackIndex)INS_AB(ins);
-                *(self->base + slot) = *(self->top - 1);
+                *(stack_slot(self, slot)) = *(self->top - 1);
                 self->top--;
                 break;
             }
@@ -352,19 +355,19 @@ static void __Thread_run(Thread* self)
                 TValue* value = self->top - 1;
                 auto table_slot = (StackIndex)INS_AB(ins);
                 auto key_slot = (StackIndex)INS_CD(ins);
-                *Table_set(self, tv2table(self->base + table_slot),
-                    self->base + key_slot)
-                    = *value;
+                auto key = stack_slot(self, key_slot);
+                auto table = tv2table(stack_slot(self, table_slot));
+                *Table_set(self, table, key) = *value;
                 self->top -= 1;
                 break;
             }
 
             case Opcode::TABLE_GET: {
                 TValue* key = self->top - 1;
-
                 auto slot = (StackIndex)INS_AB(ins);
+                auto table = tv2table(stack_slot(self, slot));
+                auto value = Table_get(self, table, key);
 
-                auto value = Table_get(self, tv2table(self->base + slot), key);
                 if (value)
                     *(self->top - 1) = *value;
                 else
@@ -539,4 +542,4 @@ void Thread_push_pc(Thread* self, const Instruction* pc)
 
 const Instruction* Thread_pop_pc(Thread* self) { return (--self->top)->pc; }
 
-} // namespace nf
+} // namespace nf::imp

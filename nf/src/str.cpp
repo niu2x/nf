@@ -3,7 +3,27 @@
 #include "api.h"
 #include "object.h"
 
-namespace nf {
+namespace nf::imp {
+
+// Str* Str_new_fmt(Thread* th, const char* fmt, ...)
+// {
+//     va_list ap;
+//     va_start(ap, fmt);
+//     auto s = Str_new_fmt(th, fmt, ap);
+//     va_end(ap);
+//     return s;
+// }
+
+Str* Str_new_fmt(Thread* th, const char* fmt, va_list ap)
+{
+    va_list copy_ap;
+    va_copy(copy_ap, ap);
+    auto size = vsnprintf(nullptr, 0, fmt, ap);
+    MBuffer_reserve(th, &(th->tmp_buf), ++size);
+    th->tmp_buf.nr = size;
+    vsnprintf(th->tmp_buf.data, size, fmt, copy_ap);
+    return Str_new(th, th->tmp_buf.data, size - 1);
+}
 
 Str* Str_new(Thread* th, const char* ptr, Size nr)
 {
@@ -35,4 +55,4 @@ Str* Str_concat(Thread* th, Str* a, Str* b)
     return Str_new(th, th->tmp_buf.data, a->nr + b->nr);
 }
 
-} // namespace nf
+} // namespace nf::imp

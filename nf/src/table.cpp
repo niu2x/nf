@@ -1,6 +1,6 @@
 #include "object.h"
 
-namespace nf {
+namespace nf::imp {
 void Table_init(Table* self)
 {
     self->array_ptr = nullptr;
@@ -147,7 +147,6 @@ Table* Table_new(Thread* th)
 
 TValue* Table_get(Thread* th, Table* self, TValue* key, bool only_hash)
 {
-
     if (!only_hash) {
         if (key->type == Type::Integer) {
             return Table_get(th, self, key->i);
@@ -167,4 +166,4 @@ TValue* Table_get(Thread* th, Table* self, TValue* key, bool only_hash)
     return nullptr;
 }
 
-} // namespace nf
+} // namespace nf::imp

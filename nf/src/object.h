@@ -11,7 +11,7 @@
 #include "zio.h"
 #include "basic_types.h"
 
-namespace nf {
+namespace nf::imp {
 
 struct Object {
     Object* next;
@@ -32,7 +32,6 @@ struct TValue {
 };
 
 int TValue_compare(TValue* a, TValue* b);
-NF_INLINE void TValue_set_nil(TValue* tv) { tv->type = Type::NIL; }
 
 struct Str : Object {
     char* base;
@@ -184,6 +183,13 @@ struct Thread : Object {
 #define tv2str(tv)  obj2str(tv2obj(tv))
 #define tv2table(tv) obj2table(tv2obj(tv))
 
-} // namespace nf
+NF_INLINE void TValue_set_nil(TValue* tv) { tv->type = Type::NIL; }
+NF_INLINE void TValue_set_table(TValue* tv, Table* obj)
+{
+    tv->type = Type::Table;
+    tv->obj = obj;
+}
+
+} // namespace nf::imp
 
 #endif

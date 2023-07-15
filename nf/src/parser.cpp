@@ -8,9 +8,9 @@
 #include "bytecode.h"
 #include "object.h"
 
-// #define printf(...)
+#define printf(...)
 
-namespace nf {
+namespace nf::imp {
 
 struct SParser {
     ZIO* z;
@@ -478,36 +478,6 @@ static void stmt_local(FuncState* fs)
         fs, { .type = SingleValueType::NORMAL, .index = slot });
 }
 
-// static void single_value(FuncState* fs)
-// {
-//     auto token = peek(fs->ls);
-//     if (token->token == TT_SYMBOL) {
-//         Index var_index = Scope_search(fs->scope, token->seminfo.s->base);
-//         if (var_index < 0) {
-//             emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
-//             next(fs->ls);
-//         } else {
-//             auto slot = fs->scope->var_slots[var_index];
-//             next(fs->ls);
-//             token = peek(fs->ls);
-
-//             if (token->token == '[') {
-//                 next(fs->ls);
-//                 expr(fs);
-//                 expect(fs->ls, ']');
-//                 emit(fs, INS_FROM_OP_AB(Opcode::TABLE_GET, slot), 0);
-//             } else {
-//                 emit(fs, INS_FROM_OP_ABCDEF(Opcode::PUSH, slot), 1);
-//             }
-//         }
-
-//     } else if (token->token == '{') {
-//         table_value(fs);
-//     } else {
-//         const_value(fs);
-//     }
-// }
-
 static SingleValue single_value(FuncState* fs, SingleValue prev)
 {
     auto token = peek(fs->ls);
@@ -517,16 +487,22 @@ static SingleValue single_value(FuncState* fs, SingleValue prev)
             if (token->token == TT_SYMBOL) {
                 VarIndex var_index;
                 StackIndex slot;
+                SingleValue value;
                 auto var_name = token->seminfo.s->base;
                 if ((var_index = Scope_search(fs->scope, var_name)) < 0) {
-                    Thread_throw(
-                        fs->ls->th, E::PARSE, "undefine var is not left_value");
+                    TValue key
+                        = { .type = Type::String, .obj = token->seminfo.s };
+                    emit_const(fs, &key);
+                    value = { .type = SingleValueType::TABLE_SLOT,
+                        .index = PSEUDO_INDEX_GLOBAL };
+                } else {
+                    slot = var_index;
+                    next(fs->ls);
+                    value = { .type = SingleValueType::NORMAL, .index = slot };
                 }
-                slot = var_index;
-                next(fs->ls);
 
-                return single_value(
-                    fs, { .type = SingleValueType::NORMAL, .index = slot });
+                return single_value(fs, value);
+
             } else if (token->token == '{') {
                 return single_value(fs, table_value(fs));
             } else if (token->token == TT_INTEGER || token->token == TT_NUMBER
@@ -726,4 +702,4 @@ VarIndex Scope_insert(Scope* self, const char* name)
     return self->nr - 1;
 }
 
-} // namespace nf
+} // namespace nf::imp

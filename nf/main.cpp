@@ -54,9 +54,9 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    auto th = nf::Thread_open();
-    nf::Thread_run(th, stdin);
-    nf::Thread_close(th);
+    auto th = nf::open();
+    nf::run(th, stdin);
+    nf::close(th);
 
     return 0;
 }

@@ -3,7 +3,7 @@
 
 #include "basic_types.h"
 
-namespace nf {
+namespace nf::imp {
 
 enum class Opcode : uint16_t {
     TEST = 100,
@@ -47,6 +47,6 @@ enum class Opcode : uint16_t {
     (INS_FROM_OP_NO_ARGS(op) | (((Instruction)((AB))) << 48)                   \
         | (((Instruction)((CD))) << 32))
 
-} // namespace nf
+} // namespace nf::imp
 
 #endif

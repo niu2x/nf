@@ -2,7 +2,7 @@
 #include "object.h"
 #include "bytecode.h"
 
-namespace nf {
+namespace nf::imp {
 
 Func* Func_new(Thread* th, Proto* proto)
 {
@@ -66,4 +66,4 @@ ConstIndex Proto_insert_const(Thread* th, Proto* self, TValue* v)
     return self->const_nr - 1;
 }
 
-} // namespace nf
+} // namespace nf::imp

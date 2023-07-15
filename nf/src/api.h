@@ -1,13 +1,16 @@
 #ifndef NF_API_H
 #define NF_API_H
 
+#include <stdarg.h>
 #include <cstdint>
 
 #include <nf/api.h>
 #include "basic_types.h"
 #include "utils.h"
 
-namespace nf {
+namespace nf::imp {
+
+struct Thread;
 
 using ProtectedFunc = void (*)(Thread* self, void* ud);
 using CFunc = int (*)(Thread* self);
@@ -29,8 +32,12 @@ struct Func;
 Error Thread_run_protected(Thread* self, ProtectedFunc f, void* ud);
 void Thread_throw(Thread* self, Error err, const char* = nullptr);
 
+Thread* Thread_open();
+void Thread_close(Thread* self);
+
 Error Thread_load(Thread* self, const char* buff, Size size, const char* name);
 void Thread_run(Thread*, const char* code);
+void Thread_run(Thread* self, FILE* fp);
 void Thread_push(Thread* self, TValue* tv);
 void Thread_push_index(Thread* self, StackIndex index);
 void Thread_push_pc(Thread* self, const Instruction* ins);
@@ -45,13 +52,15 @@ Error protected_parser(Thread* th, ZIO* z, const char* name);
 
 struct Str;
 Str* Str_new(Thread* th, const char* ptr, Size nr);
+// Str* Str_new_fmt(Thread* th, const char* fmt, ...);
+Str* Str_new_fmt(Thread* th, const char* fmt, va_list);
 Str* Str_concat(Thread* th, Str*, Str*);
 
 struct StrTab;
 void StrTab_insert(Thread* th, StrTab* self, Str* str);
 Str* StrTab_search(StrTab* self, const char* str, Size len, Hash hash);
 
-} // namespace nf
+} // namespace nf::imp
 
 #define NF_ALLOC_P(th, size)                                                   \
     (NF_ALLOC(size) ?: (Thread_throw((th), E::OUT_OF_MEMORY), nullptr))
@@ -65,8 +74,10 @@ Str* StrTab_search(StrTab* self, const char* str, Size len, Hash hash);
     (T*)NF_REALLOC_P((th), (old_ptr), (sizeof(T) * (nr)))
 
 #define normalize_stack_index(th, i)                                           \
-    ((i) >= 0 ? i : ((th)->top - (th)->base + i))
+    ((i) >= 0 ? (i) : ((th)->top - (th)->base + (i)))
 #define stack_slot(th, index)                                                  \
-    ((th)->base + normalize_stack_index((th), (index)))
+    (index) == PSEUDO_INDEX_GLOBAL                                             \
+        ? Thread_registry(th)                                                  \
+        : (((th)->base + normalize_stack_index((th), (index))))
 
 #endif
