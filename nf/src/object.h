@@ -182,6 +182,7 @@ struct Thread : Object {
 
 #define tv2obj(tv)   ((tv)->obj)
 #define tv2str(tv)  obj2str(tv2obj(tv))
+#define tv2func(tv)  obj2func(tv2obj(tv))
 #define tv2table(tv) obj2table(tv2obj(tv))
 
 NF_INLINE void TValue_set_nil(TValue* tv) { tv->type = Type::NIL; }

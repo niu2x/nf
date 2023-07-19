@@ -146,7 +146,9 @@ Table* Table_new(Thread* th)
 }
 
 TValue* Table_get(Thread* th, Table* self, TValue* key, bool only_hash)
+
 {
+
     if (!only_hash) {
         if (key->type == Type::Integer) {
             return Table_get(th, self, key->i);
@@ -159,8 +161,10 @@ TValue* Table_get(Thread* th, Table* self, TValue* key, bool only_hash)
     Size bucket = hash_key(key) % self->node_alloc;
     Node* node = self->node_ptr[bucket];
     while (node) {
-        if (!TValue_compare(&(node->key), key))
+        if (!TValue_compare(&(node->key), key)) {
+
             return &(node->value);
+        }
         node = node->next;
     }
     return nullptr;

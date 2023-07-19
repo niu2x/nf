@@ -35,6 +35,10 @@ void die(const char* fmt, ...);
 
 #define NF_CHECK(th, cond, message)                                            \
     if (!(cond))                                                               \
+        Thread_throw(th, E::OVER_LIMIT, message);
+
+#define NF_ASSERT(th, cond, message)                                           \
+    if (!(cond))                                                               \
         Thread_throw(th, E::BUG, message);
 
 #endif

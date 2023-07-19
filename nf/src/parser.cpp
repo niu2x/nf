@@ -33,7 +33,6 @@ enum TokenType {
     TT_NUMBER,
     TT_SYMBOL,
     TT_STRING,
-    TT_PRINT,
     TT_LOCAL,
     TT_EQ,
 };
@@ -45,7 +44,6 @@ struct Keyword {
 
 static Keyword keywords[] = {
     { "local", TT_LOCAL },
-    { "print", TT_PRINT },
     { nullptr, 0 },
 };
 
@@ -269,10 +267,22 @@ static NF_INLINE void expect(LexState* ls, int token)
     }
 }
 
+static NF_INLINE bool maybe_expect(LexState* ls, int token)
+{
+    if (peek(ls)->token == token) {
+        next(ls);
+        return true;
+    } else {
+        return false;
+    }
+}
+
 static void assignment(FuncState* fs, SingleValue left_slot);
+static void func_call(FuncState* fs, SingleValue left_slot);
 
 static void emit(FuncState* fs, Instruction ins, int slots_changed)
 {
+    // printf("emit %d %d\n",(int) INS_OP(ins), (int)INS_AB(ins) );
     Proto_append_ins(fs->ls->th, fs->proto, ins);
     fs->proto->used_slots += slots_changed;
 }
@@ -320,6 +330,30 @@ static SingleValue table_value(FuncState* fs)
     return { .type = SingleValueType::NORMAL, .index = MAX_USED_SLOT(fs) };
 }
 
+static SingleValue ensure_at_top(FuncState* fs, SingleValue value)
+{
+    NF_ASSERT(fs->ls->th, value.type == SingleValueType::NORMAL,
+        "must be normal value");
+    if (value.index != MAX_USED_SLOT(fs)) {
+        emit(fs, INS_FROM_OP_AB(Opcode::PUSH, value.index), 1);
+        value.index = MAX_USED_SLOT(fs);
+    }
+    return value;
+}
+
+static SingleValue ensure_normal_value(FuncState* fs, SingleValue value)
+{
+    if (value.type == SingleValueType::NORMAL) {
+        return value;
+    } else if (value.type == SingleValueType::TABLE_SLOT) {
+        emit(fs, INS_FROM_OP_AB(Opcode::TABLE_GET, value.index), 0);
+        return { .type = SingleValueType::NORMAL, .index = MAX_USED_SLOT(fs) };
+    } else {
+        // never reach
+        return value;
+    }
+}
+
 static SingleValue operand(FuncState* fs)
 {
     SingleValue value;
@@ -331,19 +365,9 @@ static SingleValue operand(FuncState* fs)
 
     } else {
         value = single_value(fs, single_value_none);
-        printf("value %d\n", value.index);
     }
 
-    if (value.type == SingleValueType::NORMAL) {
-        return value;
-    } else if (value.type == SingleValueType::TABLE_SLOT) {
-        printf("niu2x sssssssss\n");
-        emit(fs, INS_FROM_OP_AB(Opcode::TABLE_GET, value.index), 0);
-        return { .type = SingleValueType::NORMAL, .index = MAX_USED_SLOT(fs) };
-    } else {
-        // never reach
-        return value;
-    }
+    return ensure_normal_value(fs, value);
 }
 
 static SingleValue mul_or_div_elem(FuncState* fs)
@@ -358,10 +382,11 @@ static SingleValue mul_or_div_elem(FuncState* fs)
     auto value = operand(fs);
     if (operation == '#') {
         emit(fs, INS_FROM_OP_AB(Opcode::LEN, value.index), 1);
+        value.index = MAX_USED_SLOT(fs);
     } else if (operation == '-') {
         emit(fs, INS_FROM_OP_AB(Opcode::NEG, value.index), 1);
+        value.index = MAX_USED_SLOT(fs);
     }
-    value.index = MAX_USED_SLOT(fs);
     return value;
 }
 
@@ -432,14 +457,7 @@ end_loop:
     return first;
 }
 
-static void stmt_print(FuncState* fs)
-{
-    auto result = expr(fs);
-    emit(fs, INS_FROM_OP_AB(Opcode::PUSH, result.index), 1);
-    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::PRINT), -1);
-}
-
-static void optional_init_assignment(FuncState* fs, SingleValue left_value)
+static void maybe_init_assignment(FuncState* fs, SingleValue left_value)
 {
     auto token = peek(fs->ls);
     if (token->token == '=') {
@@ -462,7 +480,7 @@ static void stmt_local(FuncState* fs)
     if ((var_index = Scope_search(fs->scope, var_name)) < 0) {
         var_index = Scope_insert(fs->scope, var_name);
         slot = fs->proto->used_slots;
-        NF_CHECK(
+        NF_ASSERT(
             fs->ls->th, slot == var_index, "slot should equal to var_index");
         // fs->scope->var_slots[var_index] = slot;
         emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
@@ -474,7 +492,7 @@ static void stmt_local(FuncState* fs)
 
     next(fs->ls);
 
-    optional_init_assignment(
+    maybe_init_assignment(
         fs, { .type = SingleValueType::NORMAL, .index = slot });
 }
 
@@ -563,6 +581,39 @@ static void assignment(FuncState* fs, SingleValue left_value)
     }
 }
 
+static void func_call(FuncState* fs, SingleValue left_value)
+{
+    left_value = ensure_normal_value(fs, left_value);
+
+    expect(fs->ls, '(');
+
+    StackIndex args[MAX_ARGS];
+    int args_nr = 0;
+
+    auto token = peek(fs->ls);
+    if (token->token != ')') {
+        while (true) {
+            auto v = expr(fs);
+            NF_ASSERT(fs->ls->th, v.type == SingleValueType::NORMAL,
+                "operand must normal value");
+            NF_CHECK(fs->ls->th, args_nr < MAX_ARGS, "too many func args");
+            args[args_nr++] = v.index;
+            if (!maybe_expect(fs->ls, ',')) {
+                break;
+            }
+        }
+    }
+    expect(fs->ls, ')');
+
+    left_value = ensure_at_top(fs, left_value);
+
+    for (int i = 0; i < args_nr; i++) {
+        emit(fs, INS_FROM_OP_AB(Opcode::PUSH, args[i]), 1);
+    }
+
+    emit(fs, INS_FROM_OP_AB(Opcode::CALL, left_value.index), -args_nr - 1);
+}
+
 static bool stmt(FuncState* fs)
 {
     auto token = peek(fs->ls);
@@ -571,11 +622,6 @@ static bool stmt(FuncState* fs)
     switch (token->token) {
         case TT_EOF: {
             chunk_finished = true;
-            break;
-        }
-        case TT_PRINT: {
-            next(fs->ls);
-            stmt_print(fs);
             break;
         }
 
@@ -587,7 +633,19 @@ static bool stmt(FuncState* fs)
 
         case TT_SYMBOL: {
             auto left_slot = single_value(fs, single_value_none);
-            assignment(fs, left_slot);
+
+            auto token = peek(fs->ls);
+            switch (token->token) {
+                case '=': {
+                    assignment(fs, left_slot);
+                    break;
+                }
+                case '(': {
+                    func_call(fs, left_slot);
+                    break;
+                }
+            }
+
             break;
         }
 
@@ -597,7 +655,9 @@ static bool stmt(FuncState* fs)
     }
 
     Size tmp_nr = fs->proto->used_slots - Scope_vars_nr(fs->scope);
-    emit(fs, INS_FROM_OP_AB(Opcode::POP, tmp_nr), -tmp_nr);
+    if (tmp_nr != 0) {
+        emit(fs, INS_FROM_OP_AB(Opcode::POP, tmp_nr), -tmp_nr);
+    }
 
     return chunk_finished;
 }

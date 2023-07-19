@@ -32,6 +32,7 @@ void new_str(ThreadPtr self, const char* sz, int len)
 ThreadPtr open()
 {
     auto th = Thread_open();
+    lib_core_init(th);
     lib_nf_init(th);
     return th;
 }

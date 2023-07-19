@@ -34,9 +34,13 @@ using Number = double;
 using VarIndex = int16_t;
 using ConstIndex = int16_t;
 
+// 主要受限于16位的VarIndex、ConstIndex、StackIndex
 #define MAX_VAR_NR   30000
 #define MAX_CONST_NR 30000
 #define MAX_STACK_NR 30000
+
+// 最大的函数参数个数
+#define MAX_ARGS 256
 
 using StackIndex = nf::StackIndex;
 using PseudoIndex = nf::PseudoIndex;

@@ -12,7 +12,6 @@ enum class Opcode : uint16_t {
     SUB,
     MUL,
     DIV,
-    PRINT,
     CONST,
     LOAD_NIL,
     PUSH,
@@ -23,6 +22,7 @@ enum class Opcode : uint16_t {
     POP,
     LEN,
     NEG,
+    CALL,
 };
 
 // NO_ARGS(48)_OP(16)

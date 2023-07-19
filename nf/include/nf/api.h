@@ -11,9 +11,13 @@ enum PseudoIndex {
     PSEUDO_INDEX_GLOBAL = -30005,
 };
 
+namespace imp {
 struct Thread;
+};
+
+using Thread = imp::Thread;
 using ThreadPtr = Thread*;
-using CFunc = int (*)(ThreadPtr* self);
+using CFunc = int (*)(ThreadPtr self);
 
 ThreadPtr open();
 void close(ThreadPtr);

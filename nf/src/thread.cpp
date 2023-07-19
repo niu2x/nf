@@ -243,7 +243,7 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
     }                                                                          \
     Thread_push(self, &result);
 
-static void __Thread_return(Thread* self)
+static void __Thread_return(Thread* self, StackIndex called_func)
 {
 
     self->top = self->base;
@@ -251,7 +251,10 @@ static void __Thread_return(Thread* self)
     self->base = Thread_pop_index(self) + self->stack;
     self->pc = Thread_pop_pc(self);
     self->func = self->func->prev;
+    self->top = self->base + normalize_stack_index(self, called_func);
 }
+
+static void Thread_call(Thread* self, StackIndex func_i);
 
 static void __Thread_run(Thread* self)
 {
@@ -283,41 +286,6 @@ static void __Thread_run(Thread* self)
 
             case Opcode::DIV: {
                 BIN_OP(/);
-                break;
-            }
-
-            case Opcode::PRINT: {
-                TValue* first = self->top - 1;
-
-                switch (first->type) {
-                    case Type::Integer: {
-                        printf("%ld\n", first->i);
-                        break;
-                    }
-                    case Type::Number: {
-                        printf("%lf\n", first->n);
-                        break;
-                    }
-                    case Type::String: {
-                        auto str = obj2str(tv2obj(first));
-                        fwrite(str->base, 1, str->nr, stdout);
-                        printf("\n");
-                        break;
-                    }
-                    case Type::NIL: {
-                        printf("nil\n");
-                        break;
-                    }
-                    case Type::Table: {
-                        printf("table(%p)\n", first->obj);
-                        break;
-                    }
-                    default: {
-                        printf("print it unsupport for %d", (int)(self->type));
-                    }
-                }
-
-                self->top--;
                 break;
             }
 
@@ -418,7 +386,11 @@ static void __Thread_run(Thread* self)
                     }
                 }
                 Thread_push(self, &result);
-
+                break;
+            }
+            case Opcode::CALL: {
+                auto slot = (StackIndex)INS_AB(ins);
+                Thread_call(self, slot);
                 break;
             }
 
@@ -430,19 +402,26 @@ static void __Thread_run(Thread* self)
     }
 }
 
-void Thread_call(Thread* self, StackIndex func_i)
+static void Thread_call(Thread* self, StackIndex func_i)
 {
     auto tv_func = stack_slot(self, func_i);
+    auto args = tv_func + 1;
+    int args_nr = self->top - args;
 
     Thread_push_pc(self, self->pc);
     Thread_push_index(self, self->base - self->stack);
     Thread_push_index(self, self->top - self->stack);
 
+    NF_CHECK(self, tv_func->type == Type::Func, "not a func");
     auto func = obj2func(tv2obj(tv_func));
 
     self->base = self->top;
     func->prev = self->func;
     self->func = func;
+
+    while (args_nr--) {
+        Thread_push(self, args++);
+    }
 
     if (func->func_type == FuncType::NF) {
         self->pc = func->proto->ins;
@@ -451,7 +430,7 @@ void Thread_call(Thread* self, StackIndex func_i)
         auto c_func = func->c_func;
         c_func(self);
     }
-    __Thread_return(self);
+    __Thread_return(self, func_i);
 }
 
 Error Thread_pcall(Thread* self, ProtectedFunc f, void* ud)

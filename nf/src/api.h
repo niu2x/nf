@@ -23,6 +23,7 @@ enum class Error : uint8_t {
     LOAD,
     OP_NUM,
     BUG,
+    OVER_LIMIT,
 };
 
 using E = Error;
@@ -60,6 +61,8 @@ struct StrTab;
 void StrTab_insert(Thread* th, StrTab* self, Str* str);
 Str* StrTab_search(StrTab* self, const char* str, Size len, Hash hash);
 
+void print(TValue* value);
+
 } // namespace nf::imp
 
 #define NF_ALLOC_P(th, size)                                                   \
@@ -76,8 +79,8 @@ Str* StrTab_search(StrTab* self, const char* str, Size len, Hash hash);
 #define normalize_stack_index(th, i)                                           \
     ((i) >= 0 ? (i) : ((th)->top - (th)->base + (i)))
 #define stack_slot(th, index)                                                  \
-    (index) == PSEUDO_INDEX_GLOBAL                                             \
-        ? Thread_registry(th)                                                  \
-        : (((th)->base + normalize_stack_index((th), (index))))
+    ((index) == PSEUDO_INDEX_GLOBAL                                            \
+            ? Thread_registry(th)                                              \
+            : (((th)->base + normalize_stack_index((th), (index)))))
 
 #endif
