@@ -1,7 +1,9 @@
-local f = function(a,b) {
-	print(a);
-	print(b);
-	print(a+b+1);
+x = 3;
+
+
+local g = function() {
+	return x+3;
 };
 
-f(1,2,3,4,5,6);
+print(x);
+print(g());

@@ -744,7 +744,7 @@ static bool stmt(FuncState* fs)
     if (token->token != TT_EOF) {
         if (token->token == TT_RETURN) {
             next(fs->ls);
-            expr(fs, operations_order);
+            ensure_at_top(fs, ensure_normal_value(fs, expr(fs, operations_order)));
             emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
         } else if (token->token == '}') {
             chunk_finished = true;
