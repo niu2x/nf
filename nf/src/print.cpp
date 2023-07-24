@@ -19,6 +19,7 @@ int print(Thread* th, TValue* value)
         case Type::String: {
             auto str = obj2str(tv2obj(value));
             fwrite(str->base, 1, str->nr, stdout);
+            printf("\n");
             break;
         }
         case Type::NIL: {
