@@ -1,4 +1,4 @@
-if(GTest_DIR) 
+if(EXISTS ${GTest_DIR}) 
 	find_package(GTest REQUIRED)
 	file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/inner-test-*.cpp")
 
