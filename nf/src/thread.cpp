@@ -429,6 +429,20 @@ static int __Thread_run(Thread* self)
                 Thread_push_func(self, func);
                 break;
             }
+            case Opcode::GET_UP_VALUE: {
+                auto u32 = (uint32_t)INS_ABCD(ins);
+                UpValuePos uv_pos;
+                uv_pos.u32 = u32;
+
+                TValue* base = self->base;
+                while (uv_pos.deep-- > 0) {
+                    base = (base - 2)->index + self->stack;
+                }
+
+                Thread_push(self, base + uv_pos.slot);
+
+                break;
+            }
 
             default: {
                 fprintf(stderr, "unsupport bytecode %u\n", (int)INS_OP(ins));

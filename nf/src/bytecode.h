@@ -41,6 +41,7 @@ enum class Opcode : uint16_t {
     NEG,
     CALL,
     NEW_NF_FUNC,
+    GET_UP_VALUE,
 };
 
 // NO_ARGS(48)_OP(16)

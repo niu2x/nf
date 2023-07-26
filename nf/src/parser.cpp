@@ -15,7 +15,7 @@
 //     "LEN",  "NEG",       "CALL",      "NEW_NF_FUNC",
 // };
 
-#define printf(...)
+// #define printf(...)
 
 namespace nf::imp {
 
@@ -85,20 +85,33 @@ enum class SingleValueType : uint8_t {
     NONE,
     NORMAL,
     TABLE_SLOT,
+    UP_VALUE,
 };
 
 struct SingleValue {
+    uint32_t uv_pos;
     StackIndex index;
     StackIndex extras[1];
+
     SingleValueType type;
     bool assignable;
 };
 
 static SingleValue single_normal_value(StackIndex index, bool assignable)
 {
-    return { .index = index,
+    return { .uv_pos = 0,
+             .index = index,
              .extras = {},
              .type = SingleValueType::NORMAL,
+             .assignable = assignable };
+}
+
+static SingleValue single_up_value(UpValuePos uv_pos, bool assignable)
+{
+    return { .uv_pos = uv_pos.u32,
+             .index = 0,
+             .extras = {},
+             .type = SingleValueType::UP_VALUE,
              .assignable = assignable };
 }
 
@@ -106,13 +119,15 @@ static SingleValue single_table_slot(StackIndex table_index,
                                      StackIndex key_index,
                                      bool assignable)
 {
-    return { .index = table_index,
+    return { .uv_pos = 0,
+             .index = table_index,
              .extras = { key_index },
              .type = SingleValueType::TABLE_SLOT,
              .assignable = assignable };
 }
 
 static SingleValue single_value_none = {
+    .uv_pos = 0,
     .index = 0,
     .extras = {},
     .type = SingleValueType::NONE,
@@ -321,10 +336,7 @@ static const char* operations_order[] = {
 
 static void emit(FuncState* fs, Instruction ins, int slots_changed)
 {
-    printf("emit %s %d %d\n",
-           opcode_names[(int)(INS_OP(ins)) - 100],
-           (int)INS_AB(ins),
-           (int)INS_CD(ins));
+
     Proto_append_ins(fs->ls->th, fs->proto, ins);
     fs->proto->used_slots += slots_changed;
 }
@@ -399,6 +411,9 @@ static SingleValue ensure_normal_value(FuncState* fs, SingleValue value)
              INS_FROM_OP_AB_CD(Opcode::TABLE_GET, value.index, value.extras[0]),
              1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
+    } else if (value.type == SingleValueType::UP_VALUE) {
+        emit(fs, INS_FROM_OP_ABCD(Opcode::GET_UP_VALUE, value.uv_pos), 1);
+        return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     } else {
         // never reach
         return value;
@@ -413,15 +428,18 @@ static SingleValue lookup_var(FuncState* fs, Token* token)
     SingleValue value;
     auto var_name = token->seminfo.s->base;
     if ((slot = Scope_search(fs->scope, var_name, true)) < 0) {
-        TValue key = { .type = Type::String, .obj = token->seminfo.s };
-        emit_const(fs, &key);
-        next(fs->ls);
-        value = SINGLE_TABLE_SLOT_KEY_AT_TOP(fs, PSEUDO_INDEX_GLOBAL, true);
-
+        UpValuePos uv_pos;
+        if ((uv_pos = UpValue_search(fs->proto->parent, var_name)).deep != 0) {
+            value = single_up_value(uv_pos, true);
+        } else {
+            TValue key = { .type = Type::String, .obj = token->seminfo.s };
+            emit_const(fs, &key);
+            value = SINGLE_TABLE_SLOT_KEY_AT_TOP(fs, PSEUDO_INDEX_GLOBAL, true);
+        }
     } else {
-        next(fs->ls);
         value = single_normal_value(slot, true);
     }
+    next(fs->ls);
     return value;
 }
 
@@ -441,6 +459,7 @@ static SingleValue function(FuncState* parent_fs)
     auto proto = Proto_new(fs.ls->th);
     fs.proto = proto;
     proto->name = Str_new(fs.ls->th, "", 0);
+    proto->parent = parent_fs->proto;
 
     expect(fs.ls, TT_FUNCTION);
     expect(fs.ls, '(');
@@ -462,7 +481,8 @@ static SingleValue function(FuncState* parent_fs)
     }
 
     fs.proto->args_nr = args_nr;
-    printf("s.proto->args_nr %d %p\n", fs.proto->args_nr, &(fs.proto->args_nr));
+    // printf("s.proto->args_nr %d %p\n", fs.proto->args_nr,
+    // &(fs.proto->args_nr));
 
     expect(fs.ls, ')');
     expect(fs.ls, '{');
@@ -526,6 +546,8 @@ static void assignemnt(FuncState* fs,
         auto ins = INS_FROM_OP_AB_CD(
             Opcode::TABLE_SET, left_value->index, left_value->extras[0]);
         emit(fs, ins, -1);
+    } else if (left_value->type == SingleValueType::UP_VALUE) {
+        // todo
     }
 }
 
@@ -670,24 +692,13 @@ static SingleValue call_or_table_access(FuncState* fs, const char** operations)
 
         } else if (token == '[') {
             next(fs->ls);
-            if (first.type == SingleValueType::TABLE_SLOT) {
-                emit(fs,
-                     INS_FROM_OP_AB_CD(
-                         Opcode::TABLE_GET, first.index, first.extras[0]),
-                     1);
-                first.index = MAX_USED_SLOT(fs);
-                auto key = expr(fs, operations_order);
-                key = ensure_normal_value(fs, key);
-                first.extras[0] = key.index;
-                expect(fs->ls, ']');
-            } else {
-                auto key = expr(fs, operations_order);
-                key = ensure_normal_value(fs, key);
-                first.type = SingleValueType::TABLE_SLOT;
-                first.extras[0] = key.index;
-                first.assignable = true;
-                expect(fs->ls, ']');
-            }
+            first = ensure_normal_value(fs, first);
+            auto key = expr(fs, operations_order);
+            key = ensure_normal_value(fs, key);
+            first.type = SingleValueType::TABLE_SLOT;
+            first.extras[0] = key.index;
+            first.assignable = true;
+            expect(fs->ls, ']');
 
         } else
             return first;
@@ -780,6 +791,7 @@ static void chunk(FuncState* fs)
 
     scope.parent = fs->scope;
     fs->scope = &scope;
+    fs->proto->scope = fs->scope;
 
     bool chunk_finished = stmt_with_semi(fs);
     while (!chunk_finished) {
@@ -787,6 +799,7 @@ static void chunk(FuncState* fs)
     }
 
     fs->scope = fs->scope->parent;
+    fs->proto->scope = fs->scope;
 }
 
 static void func_body(FuncState* fs)
@@ -862,6 +875,26 @@ StackIndex Scope_search(Scope* self, const char* name, bool recursive)
         return Scope_search(self->parent, name, recursive);
     }
     return -1;
+}
+
+UpValuePos UpValue_search(Proto* proto, const char* name, StackIndex deep)
+{
+    UpValuePos r;
+    if (!proto) {
+        r.u32 = 0;
+        return r;
+    }
+
+    if (proto->scope) {
+        auto slot = Scope_search(proto->scope, name, deep);
+        if (slot >= 0) {
+            r.deep = deep;
+            r.slot = slot;
+            return r;
+        }
+    }
+
+    return UpValue_search(proto->parent, name, deep + 1);
 }
 
 void Scope_insert(Scope* self, const char* name, StackIndex index)

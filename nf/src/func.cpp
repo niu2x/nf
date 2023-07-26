@@ -41,6 +41,12 @@ Proto* Proto_new(Thread* th)
     proto->name = nullptr;
     proto->args_nr = 0;
 
+    proto->scope = nullptr;
+    proto->parent = nullptr;
+
+    // proto->up_values = nullptr;
+    // proto->up_values_nr = 0;
+
     return proto;
 }
 

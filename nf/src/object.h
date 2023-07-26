@@ -73,13 +73,19 @@ struct Scope {
     // Size var_slots[MAX_VAR_NR];
 };
 
+union UpValuePos {
+    struct {
+        StackIndex deep;
+        StackIndex slot;
+    };
+
+    uint32_t u32;
+};
+
 void Scope_init(Scope* self, Thread*);
 StackIndex Scope_search(Scope* self, const char*, bool recursive = false);
 void Scope_insert(Scope* self, const char*, StackIndex i);
-// NF_INLINE void Scope_set_var_slot(Scope *self, VarIndex var, StackIndex slot)
-// {
-//     self->var_slots[var] = slot;
-// }
+
 NF_INLINE Size Scope_vars_nr(Scope* self, bool recursive = false)
 {
     return self->nr
@@ -88,12 +94,26 @@ NF_INLINE Size Scope_vars_nr(Scope* self, bool recursive = false)
                   : 0);
 }
 
+struct UpValue : Object {
+    bool closed;
+    union {
+        struct {
+            StackIndex deep;
+            StackIndex slot;
+        };
+    };
+};
+
 struct Proto : Object {
     Instruction* ins;
     Size ins_nr;
     Size ins_alloc;
 
     StackIndex used_slots;
+
+    // deep/slot is uint16_t
+    // uint32_t* up_values;
+    // StackIndex up_values_nr;
 
     ConstIndex const_nr;
     ConstIndex const_alloc;
@@ -103,7 +123,12 @@ struct Proto : Object {
     StackIndex args_nr;
 
     Str* name;
+
+    Scope* scope;
+    Proto* parent;
 };
+
+UpValuePos UpValue_search(Proto* proto, const char* name, StackIndex deep = 1);
 
 enum class FuncType {
     C,
@@ -129,6 +154,7 @@ Func* Func_new(Thread* th, CFunc cfunc);
 Proto* Proto_new(Thread* th);
 void Proto_append_ins(Thread* th, Proto* self, Instruction ins);
 ConstIndex Proto_insert_const(Thread* th, Proto* self, TValue* v);
+// StackIndex Proto_insert_uv(Thread* th, Proto* self, UpValuePos uv_pos);
 
 struct StrTab {
     Str** buckets;
