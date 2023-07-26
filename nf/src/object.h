@@ -66,6 +66,7 @@ TValue* Table_get(Thread* th, Table* self, TValue* key, bool only_hash = false);
 struct Scope {
     const char* var_names[MAX_VAR_NR];
     StackIndex var_slots[MAX_VAR_NR];
+    uint8_t flags[MAX_VAR_NR];
     Size nr;
     Scope* parent;
     Thread* th;
@@ -83,7 +84,8 @@ union UpValuePos {
 };
 
 void Scope_init(Scope* self, Thread*);
-StackIndex Scope_search(Scope* self, const char*, bool recursive = false);
+StackIndex
+Scope_search(Scope* self, const char*, uint8_t** flags, bool recursive = false);
 void Scope_insert(Scope* self, const char*, StackIndex i);
 
 NF_INLINE Size Scope_vars_nr(Scope* self, bool recursive = false)
@@ -94,15 +96,15 @@ NF_INLINE Size Scope_vars_nr(Scope* self, bool recursive = false)
                   : 0);
 }
 
-struct UpValue : Object {
-    bool closed;
-    union {
-        struct {
-            StackIndex deep;
-            StackIndex slot;
-        };
-    };
-};
+// struct UpValue : Object {
+//     bool closed;
+//     union {
+//         struct {
+//             StackIndex deep;
+//             StackIndex slot;
+//         };
+//     };
+// };
 
 struct Proto : Object {
     Instruction* ins;
@@ -145,7 +147,6 @@ struct Func : Object {
             Proto* proto;
         };
     };
-
     Func* prev;
 };
 

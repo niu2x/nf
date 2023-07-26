@@ -427,7 +427,7 @@ static SingleValue lookup_var(FuncState* fs, Token* token)
     StackIndex slot;
     SingleValue value;
     auto var_name = token->seminfo.s->base;
-    if ((slot = Scope_search(fs->scope, var_name, true)) < 0) {
+    if ((slot = Scope_search(fs->scope, var_name, nullptr, true)) < 0) {
         UpValuePos uv_pos;
         if ((uv_pos = UpValue_search(fs->proto->parent, var_name)).deep != 0) {
             value = single_up_value(uv_pos, true);
@@ -471,7 +471,7 @@ static SingleValue function(FuncState* parent_fs)
             const char* var_name = token->seminfo.s->base;
 
             NF_CHECK(fs.ls->th,
-                     Scope_search(fs.scope, var_name) < 0,
+                     Scope_search(fs.scope, var_name, nullptr) < 0,
                      "already defined args");
             Scope_insert(fs.scope, var_name, MAX_USED_SLOT(&fs) + 1);
             fs.proto->used_slots++;
@@ -737,7 +737,7 @@ static SingleValue stmt_local(FuncState* fs)
 
     StackIndex slot;
 
-    if ((slot = Scope_search(fs->scope, var_name)) < 0) {
+    if ((slot = Scope_search(fs->scope, var_name, nullptr)) < 0) {
         slot = MAX_USED_SLOT(fs) + 1;
         Scope_insert(fs->scope, var_name, slot);
         emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
@@ -861,18 +861,22 @@ void Scope_init(Scope* self, Thread* th)
     self->nr = 0;
     self->parent = nullptr;
     self->th = th;
+    memset(self->flags, 0, sizeof(self->flags));
 }
 
-StackIndex Scope_search(Scope* self, const char* name, bool recursive)
+StackIndex
+Scope_search(Scope* self, const char* name, uint8_t** flags, bool recursive)
 {
     for (Size i = 0; i < self->nr; i++) {
         if (self->var_names[i] == name) {
+            if (flags)
+                *flags = &(self->flags[i]);
             return self->var_slots[i];
         }
     }
 
     if (recursive && self->parent) {
-        return Scope_search(self->parent, name, recursive);
+        return Scope_search(self->parent, name, flags, recursive);
     }
     return -1;
 }
@@ -886,10 +890,12 @@ UpValuePos UpValue_search(Proto* proto, const char* name, StackIndex deep)
     }
 
     if (proto->scope) {
-        auto slot = Scope_search(proto->scope, name, deep);
+        uint8_t* flags;
+        auto slot = Scope_search(proto->scope, name, &flags, deep);
         if (slot >= 0) {
             r.deep = deep;
             r.slot = slot;
+            *flags |= 1;
             return r;
         }
     }

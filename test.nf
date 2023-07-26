@@ -1,16 +1,13 @@
-local x = 3;
-local y = 1;
-
-local g = function() {
-	local x = 3;
-	x = 100;
-	return y+x+4;
+local g = function(n) {
+	local add = function(){
+		return 1 + n;
+	};
+	return add;
 };
 
-print(x);
-print(g());
-print(x);
-y = 2;
-print(g());
-print(x);
-print(y);
+
+local add_1 = g(2);
+local add_2 = g(3);
+
+print(add_1());
+print(add_2());

@@ -35,7 +35,7 @@ using VarIndex = int16_t;
 using ConstIndex = int16_t;
 
 // 主要受限于16位的VarIndex、ConstIndex、StackIndex
-#define MAX_VAR_NR   30000
+#define MAX_VAR_NR   512
 #define MAX_CONST_NR 30000
 #define MAX_STACK_NR 30000
 
