@@ -45,6 +45,7 @@ enum TokenType {
     TT_EQ,
     TT_RETURN,
     TT_END,
+    TT_BLOCK,
 };
 
 struct Keyword {
@@ -53,8 +54,8 @@ struct Keyword {
 };
 
 static Keyword keywords[] = {
-    { "local", TT_LOCAL },   { "end", TT_END }, { "function", TT_FUNCTION },
-    { "return", TT_RETURN }, { nullptr, 0 },
+    { "local", TT_LOCAL },   { "end", TT_END },     { "function", TT_FUNCTION },
+    { "return", TT_RETURN }, { "block", TT_BLOCK }, { nullptr, 0 },
 };
 
 struct Token {
@@ -761,11 +762,11 @@ static bool stmt(FuncState* fs)
             chunk_finished = true;
         }
 
-        // else if(token->token == '{') {
-
-        // }
-
-        else {
+        else if (token->token == TT_BLOCK) {
+            next(fs->ls);
+            chunk(fs);
+            expect(fs->ls, TT_END);
+        } else {
             expr(fs, operations_order);
         }
     } else {
