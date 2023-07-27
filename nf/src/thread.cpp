@@ -433,13 +433,23 @@ static int __Thread_run(Thread* self)
                 auto u32 = (uint32_t)INS_ABCD(ins);
                 UpValuePos uv_pos;
                 uv_pos.u32 = u32;
-
                 TValue* base = self->base;
                 while (uv_pos.deep-- > 0) {
                     base = (base - 2)->index + self->stack;
                 }
-
                 Thread_push(self, base + uv_pos.slot);
+                break;
+            }
+
+            case Opcode::OPEN_UP_VALUE: {
+                auto u32 = (uint32_t)INS_ABCD(ins);
+                UpValuePos uv_pos;
+                uv_pos.u32 = u32;
+                TValue* base = self->base;
+                while (uv_pos.deep-- > 0) {
+                    base = (base - 2)->index + self->stack;
+                }
+                // Thread_push(self, base + uv_pos.slot);
 
                 break;
             }

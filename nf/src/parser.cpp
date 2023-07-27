@@ -44,6 +44,7 @@ enum TokenType {
     TT_FUNCTION,
     TT_EQ,
     TT_RETURN,
+    TT_END,
 };
 
 struct Keyword {
@@ -52,10 +53,8 @@ struct Keyword {
 };
 
 static Keyword keywords[] = {
-    { "local", TT_LOCAL },
-    { "function", TT_FUNCTION },
-    { "return", TT_RETURN },
-    { nullptr, 0 },
+    { "local", TT_LOCAL },   { "end", TT_END }, { "function", TT_FUNCTION },
+    { "return", TT_RETURN }, { nullptr, 0 },
 };
 
 struct Token {
@@ -430,6 +429,7 @@ static SingleValue lookup_var(FuncState* fs, Token* token)
     if ((slot = Scope_search(fs->scope, var_name, nullptr, true)) < 0) {
         UpValuePos uv_pos;
         if ((uv_pos = UpValue_search(fs->proto->parent, var_name)).deep != 0) {
+            emit(fs, INS_FROM_OP_ABCD(Opcode::OPEN_UP_VALUE, value.uv_pos), 0);
             value = single_up_value(uv_pos, true);
         } else {
             TValue key = { .type = Type::String, .obj = token->seminfo.s };
@@ -485,11 +485,11 @@ static SingleValue function(FuncState* parent_fs)
     // &(fs.proto->args_nr));
 
     expect(fs.ls, ')');
-    expect(fs.ls, '{');
+    // expect(fs.ls, '{');
 
     func_body(&fs);
 
-    expect(fs.ls, '}');
+    expect(fs.ls, TT_END);
 
     TValue tv_proto = { .type = Type::Proto, .obj = fs.proto };
     emit_const(parent_fs, &tv_proto);
@@ -757,9 +757,15 @@ static bool stmt(FuncState* fs)
             next(fs->ls);
             ensure_at_top(fs, ensure_normal_value(fs, expr(fs, operations_order)));
             emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
-        } else if (token->token == '}') {
+        } else if (token->token == TT_END) {
             chunk_finished = true;
-        } else {
+        }
+
+        // else if(token->token == '{') {
+
+        // }
+
+        else {
             expr(fs, operations_order);
         }
     } else {
@@ -797,6 +803,12 @@ static void chunk(FuncState* fs)
     while (!chunk_finished) {
         chunk_finished = stmt_with_semi(fs);
     }
+
+    // for(VarIndex i = 0; i < scope.nr; i ++ ){
+    //     if(scope.flags[i] & 1) {
+
+    //     }
+    // }
 
     fs->scope = fs->scope->parent;
     fs->proto->scope = fs->scope;
