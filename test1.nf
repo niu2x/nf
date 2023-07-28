@@ -1,5 +1,4 @@
 local a = 1;
-print(a);
 local f;
 
 block
@@ -7,6 +6,9 @@ block
 	f = function()
 		return a + 2;
 	end;
+	print(f);
+	print(f());
 end;
 
-print(a);
+print(f);
+print(f());

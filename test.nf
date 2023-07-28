@@ -1,9 +1,9 @@
-local g = function(n) {
-	local add = function(){
+local g = function(n) 
+	local add = function() 
 		return 1 + n;
-	};
+	end;
 	return add;
-};
+end;
 
 
 local add_1 = g(2);
