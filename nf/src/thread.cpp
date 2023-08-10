@@ -250,6 +250,29 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
     }                                                                          \
     Thread_push(self, &result);
 
+static void __Thread_close_uv(Thread* self)
+{
+    for (uint64_t i = self->closed_uv_nr; i < self->up_values_nr; i++) {
+
+        if (self->up_values[i]->abs_stack_index >= self->top - self->stack) {
+
+            auto closed_uv_nr = self->closed_uv_nr;
+
+            if (i != closed_uv_nr) {
+                auto tmp = self->up_values[closed_uv_nr];
+                self->up_values[closed_uv_nr] = self->up_values[i];
+                self->up_values[i] = tmp;
+            }
+
+            auto closed_uv = self->up_values[closed_uv_nr];
+
+            closed_uv->closed = true;
+            closed_uv->value = *(self->stack + closed_uv->abs_stack_index);
+            self->closed_uv_nr++;
+        }
+    }
+}
+
 static void __Thread_return(Thread* self,
                             StackIndex called_func,
                             StackIndex desire_retvals_nr,
@@ -275,6 +298,8 @@ static void __Thread_return(Thread* self,
         }
     } else
         self->top -= (retn - desire_retvals_nr);
+
+    __Thread_close_uv(self);
 }
 
 static void Thread_call(Thread* self,
@@ -436,7 +461,7 @@ static int __Thread_run(Thread* self)
                 break;
             }
             case Opcode::GET_UP_VALUE: {
-                auto uv_index = (uint32_t)INS_ABCD(ins);
+                auto uv_index = (StackIndex)INS_AB(ins);
                 auto uv = self->func->up_values[uv_index];
 
                 if (uv->closed) {
@@ -449,29 +474,25 @@ static int __Thread_run(Thread* self)
                 break;
             }
 
-            case Opcode::CLOSE_UV: {
-                for (uint64_t i = self->closed_uv_nr; i < self->up_values_nr;
-                     i++) {
+            case Opcode::SET_UV_VALUE: {
+                auto uv_index = (StackIndex)INS_AB(ins);
+                auto value_slot = (StackIndex)INS_CD(ins);
 
-                    if (self->up_values[i]->abs_stack_index
-                        >= self->top - self->stack) {
+                auto uv = self->func->up_values[uv_index];
 
-                        auto closed_uv_nr = self->closed_uv_nr;
-
-                        if (i != closed_uv_nr) {
-                            auto tmp = self->up_values[closed_uv_nr];
-                            self->up_values[closed_uv_nr] = self->up_values[i];
-                            self->up_values[i] = tmp;
-                        }
-
-                        auto closed_uv = self->up_values[closed_uv_nr];
-
-                        closed_uv->closed = true;
-                        closed_uv->value = *(self->stack
-                                             + closed_uv->abs_stack_index);
-                        self->closed_uv_nr++;
-                    }
+                if (uv->closed) {
+                    uv->value = *stack_slot(self, value_slot);
+                } else {
+                    auto abs_stack_index
+                        = self->func->up_values[uv_index]->abs_stack_index;
+                    self->stack[abs_stack_index] = *stack_slot(self,
+                                                               value_slot);
                 }
+                break;
+            }
+
+            case Opcode::CLOSE_UV: {
+                __Thread_close_uv(self);
 
                 break;
             }

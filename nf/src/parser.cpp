@@ -412,7 +412,7 @@ static SingleValue ensure_normal_value(FuncState* fs, SingleValue value)
              1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     } else if (value.type == SingleValueType::UP_VALUE) {
-        emit(fs, INS_FROM_OP_ABCD(Opcode::GET_UP_VALUE, value.uv_index), 1);
+        emit(fs, INS_FROM_OP_AB(Opcode::GET_UP_VALUE, value.uv_index), 1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     } else {
         // never reach
@@ -548,7 +548,9 @@ static void assignemnt(FuncState* fs,
             Opcode::TABLE_SET, left_value->index, left_value->extras[0]);
         emit(fs, ins, -1);
     } else if (left_value->type == SingleValueType::UP_VALUE) {
-        // todo
+        auto ins = INS_FROM_OP_AB_CD(
+            Opcode::SET_UV_VALUE, left_value->uv_index, second.index);
+        emit(fs, ins, 0);
     }
 }
 
@@ -759,7 +761,6 @@ static bool stmt(FuncState* fs)
             next(fs->ls);
             ensure_at_top(fs, ensure_normal_value(fs, expr(fs, operations_order)));
             emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
-            inner_scope_finished = true;
         } else if (token->token == TT_END) {
             chunk_finished = true;
         }
