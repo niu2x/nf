@@ -89,6 +89,12 @@ static void Thread_init_step_one(Thread* self)
 
     self->error_msg[0] = 0;
 
+    self->up_values = nullptr;
+    ;
+    self->up_values_nr = 0;
+    self->up_values_alloc = 0;
+    self->closed_uv_nr = 0;
+
     MBuffer_init(&(self->tmp_buf));
 }
 
@@ -430,26 +436,42 @@ static int __Thread_run(Thread* self)
                 break;
             }
             case Opcode::GET_UP_VALUE: {
-                auto u32 = (uint32_t)INS_ABCD(ins);
-                UpValuePos uv_pos;
-                uv_pos.u32 = u32;
-                TValue* base = self->base;
-                while (uv_pos.deep-- > 0) {
-                    base = (base - 2)->index + self->stack;
+                auto uv_index = (uint32_t)INS_ABCD(ins);
+                auto uv = self->func->up_values[uv_index];
+
+                if (uv->closed) {
+                    Thread_push(self, &(uv->value));
+                } else {
+                    auto abs_stack_index
+                        = self->func->up_values[uv_index]->abs_stack_index;
+                    Thread_push(self, abs_stack_index + self->stack);
                 }
-                Thread_push(self, base + uv_pos.slot);
                 break;
             }
 
-            case Opcode::OPEN_UP_VALUE: {
-                auto u32 = (uint32_t)INS_ABCD(ins);
-                UpValuePos uv_pos;
-                uv_pos.u32 = u32;
-                TValue* base = self->base;
-                while (uv_pos.deep-- > 0) {
-                    base = (base - 2)->index + self->stack;
+            case Opcode::CLOSE_UV: {
+                for (uint64_t i = self->closed_uv_nr; i < self->up_values_nr;
+                     i++) {
+
+                    if (self->up_values[i]->abs_stack_index
+                        >= self->top - self->stack) {
+
+                        auto closed_uv_nr = self->closed_uv_nr;
+
+                        if (i != closed_uv_nr) {
+                            auto tmp = self->up_values[closed_uv_nr];
+                            self->up_values[closed_uv_nr] = self->up_values[i];
+                            self->up_values[i] = tmp;
+                        }
+
+                        auto closed_uv = self->up_values[closed_uv_nr];
+
+                        closed_uv->closed = true;
+                        closed_uv->value = *(self->stack
+                                             + closed_uv->abs_stack_index);
+                        self->closed_uv_nr++;
+                    }
                 }
-                // Thread_push(self, base + uv_pos.slot);
 
                 break;
             }
@@ -589,6 +611,7 @@ void Thread_push(Thread* self, const TValue* tv)
     if (self->stack_nr <= (self->top - self->stack)) {
         self->stack = NF_REALLOC_ARRAY_P(
             self, self->stack, TValue, self->stack_nr * 3 / 2 + 16);
+        self->stack_nr = self->stack_nr * 3 / 2 + 16;
     }
     *(self->top++) = *tv;
 }

@@ -4,6 +4,15 @@
 
 namespace nf::imp {
 
+static void Func_init_up_values(Thread* th, Func* self)
+{
+    auto proto = self->proto;
+    for (StackIndex i = 0; i < proto->up_values_nr; i++) {
+        UpValue* uv = UpValue_new(th, proto->up_values[i]);
+        self->up_values[self->up_values_nr++] = uv;
+    }
+}
+
 Func* Func_new(Thread* th, Proto* proto)
 {
     auto func = NF_ALLOC_ARRAY_P(th, Func, 1);
@@ -11,6 +20,8 @@ Func* Func_new(Thread* th, Proto* proto)
     func->func_type = FuncType::NF;
     func->proto = proto;
     func->prev = nullptr;
+    func->up_values_nr = 0;
+    Func_init_up_values(th, func);
     return func;
 }
 
@@ -21,6 +32,8 @@ Func* Func_new(Thread* th, CFunc c_func)
     func->func_type = FuncType::C;
     func->c_func = c_func;
     func->prev = nullptr;
+    func->up_values_nr = 0;
+    Func_init_up_values(th, func);
     return func;
 }
 
@@ -45,7 +58,7 @@ Proto* Proto_new(Thread* th)
     proto->parent = nullptr;
 
     // proto->up_values = nullptr;
-    // proto->up_values_nr = 0;
+    proto->up_values_nr = 0;
 
     return proto;
 }
@@ -58,6 +71,18 @@ void Proto_append_ins(Thread* th, Proto* self, Instruction ins)
         self->ins_alloc = new_alloc;
     }
     self->ins[self->ins_nr++] = ins;
+}
+
+StackIndex Proto_insert_uv(Thread* th, Proto* self, uint32_t uv)
+{
+    for (StackIndex i = 0; i < self->up_values_nr; i++) {
+        if (self->up_values[i] == uv)
+            return i;
+    }
+
+    NF_CHECK(th, self->up_values_nr + 1 <= MAX_CONST_NR, "too may uv");
+    self->up_values[self->up_values_nr++] = uv;
+    return self->up_values_nr - 1;
 }
 
 ConstIndex Proto_insert_const(Thread* th, Proto* self, TValue* v)

@@ -18,6 +18,7 @@ enum class Type : uint8_t {
     Func,
 
     Thread,
+    UpValue,
     PC,
     Index,
     Proto,
@@ -38,6 +39,7 @@ using ConstIndex = int16_t;
 #define MAX_VAR_NR   512
 #define MAX_CONST_NR 30000
 #define MAX_STACK_NR 30000
+#define MAX_UV_NR    64
 
 // 最大的函数参数个数
 #define MAX_ARGS 256

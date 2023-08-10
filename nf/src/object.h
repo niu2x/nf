@@ -96,15 +96,15 @@ NF_INLINE Size Scope_vars_nr(Scope* self, bool recursive = false)
                   : 0);
 }
 
-// struct UpValue : Object {
-//     bool closed;
-//     union {
-//         struct {
-//             StackIndex deep;
-//             StackIndex slot;
-//         };
-//     };
-// };
+struct UpValue : Object {
+    bool closed;
+    union {
+        StackIndex abs_stack_index;
+        TValue value;
+    };
+};
+
+UpValue* UpValue_new(Thread* th, uint32_t uv_pos);
 
 struct Proto : Object {
     Instruction* ins;
@@ -113,9 +113,8 @@ struct Proto : Object {
 
     StackIndex used_slots;
 
-    // deep/slot is uint16_t
-    // uint32_t* up_values;
-    // StackIndex up_values_nr;
+    uint32_t up_values[MAX_UV_NR];
+    StackIndex up_values_nr;
 
     ConstIndex const_nr;
     ConstIndex const_alloc;
@@ -147,13 +146,19 @@ struct Func : Object {
             Proto* proto;
         };
     };
+
+    UpValue* up_values[MAX_UV_NR];
+    StackIndex up_values_nr;
+
     Func* prev;
 };
 
 Func* Func_new(Thread* th, Proto* proto);
 Func* Func_new(Thread* th, CFunc cfunc);
 Proto* Proto_new(Thread* th);
+
 void Proto_append_ins(Thread* th, Proto* self, Instruction ins);
+StackIndex Proto_insert_uv(Thread* th, Proto* self, uint32_t uv);
 ConstIndex Proto_insert_const(Thread* th, Proto* self, TValue* v);
 // StackIndex Proto_insert_uv(Thread* th, Proto* self, UpValuePos uv_pos);
 
@@ -213,7 +218,15 @@ struct Thread : Object {
     char error_msg[ERROR_MSG_NR];
 
     MBuffer tmp_buf;
+
+    UpValue** up_values;
+    uint64_t up_values_nr;
+    uint64_t up_values_alloc;
+    uint64_t closed_uv_nr;
 };
+
+UpValue* Thread_search_opened_uv(Thread* th, StackIndex uv_pos);
+void Thread_insert_opened_uv(Thread* th, UpValue* uv);
 
 #define Thread_global(th)   (th->global)
 #define Thread_registry(th) (&(th->global->registry))

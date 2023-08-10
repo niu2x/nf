@@ -43,6 +43,7 @@ enum class Opcode : uint16_t {
     NEW_NF_FUNC,
     GET_UP_VALUE,
     OPEN_UP_VALUE,
+    CLOSE_UV,
 
 };
 

@@ -89,7 +89,7 @@ enum class SingleValueType : uint8_t {
 };
 
 struct SingleValue {
-    uint32_t uv_pos;
+    StackIndex uv_index;
     StackIndex index;
     StackIndex extras[1];
 
@@ -99,16 +99,16 @@ struct SingleValue {
 
 static SingleValue single_normal_value(StackIndex index, bool assignable)
 {
-    return { .uv_pos = 0,
+    return { .uv_index = 0,
              .index = index,
              .extras = {},
              .type = SingleValueType::NORMAL,
              .assignable = assignable };
 }
 
-static SingleValue single_up_value(UpValuePos uv_pos, bool assignable)
+static SingleValue single_up_value(StackIndex uv_index, bool assignable)
 {
-    return { .uv_pos = uv_pos.u32,
+    return { .uv_index = uv_index,
              .index = 0,
              .extras = {},
              .type = SingleValueType::UP_VALUE,
@@ -119,7 +119,7 @@ static SingleValue single_table_slot(StackIndex table_index,
                                      StackIndex key_index,
                                      bool assignable)
 {
-    return { .uv_pos = 0,
+    return { .uv_index = 0,
              .index = table_index,
              .extras = { key_index },
              .type = SingleValueType::TABLE_SLOT,
@@ -127,7 +127,7 @@ static SingleValue single_table_slot(StackIndex table_index,
 }
 
 static SingleValue single_value_none = {
-    .uv_pos = 0,
+    .uv_index = 0,
     .index = 0,
     .extras = {},
     .type = SingleValueType::NONE,
@@ -412,7 +412,7 @@ static SingleValue ensure_normal_value(FuncState* fs, SingleValue value)
              1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     } else if (value.type == SingleValueType::UP_VALUE) {
-        emit(fs, INS_FROM_OP_ABCD(Opcode::GET_UP_VALUE, value.uv_pos), 1);
+        emit(fs, INS_FROM_OP_ABCD(Opcode::GET_UP_VALUE, value.uv_index), 1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     } else {
         // never reach
@@ -430,8 +430,8 @@ static SingleValue lookup_var(FuncState* fs, Token* token)
     if ((slot = Scope_search(fs->scope, var_name, nullptr, true)) < 0) {
         UpValuePos uv_pos;
         if ((uv_pos = UpValue_search(fs->proto->parent, var_name)).deep != 0) {
-            emit(fs, INS_FROM_OP_ABCD(Opcode::OPEN_UP_VALUE, value.uv_pos), 0);
-            value = single_up_value(uv_pos, true);
+            auto uv_index = Proto_insert_uv(fs->ls->th, fs->proto, uv_pos.u32);
+            value = single_up_value(uv_index, true);
         } else {
             TValue key = { .type = Type::String, .obj = token->seminfo.s };
             emit_const(fs, &key);
@@ -752,12 +752,14 @@ static bool stmt(FuncState* fs)
 {
     auto token = peek(fs->ls);
     bool chunk_finished = false;
+    bool inner_scope_finished = false;
 
     if (token->token != TT_EOF) {
         if (token->token == TT_RETURN) {
             next(fs->ls);
             ensure_at_top(fs, ensure_normal_value(fs, expr(fs, operations_order)));
             emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
+            inner_scope_finished = true;
         } else if (token->token == TT_END) {
             chunk_finished = true;
         }
@@ -766,6 +768,7 @@ static bool stmt(FuncState* fs)
             next(fs->ls);
             chunk(fs);
             expect(fs->ls, TT_END);
+            inner_scope_finished = true;
         } else {
             expr(fs, operations_order);
         }
@@ -778,6 +781,9 @@ static bool stmt(FuncState* fs)
         auto ins = INS_FROM_OP_AB(Opcode::POP, tmp_nr);
         emit(fs, ins, -tmp_nr);
     }
+
+    if (inner_scope_finished)
+        emit(fs, INS_FROM_OP_NO_ARGS(Opcode::CLOSE_UV), 0);
 
     return chunk_finished;
 }
