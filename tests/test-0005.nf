@@ -47,6 +47,7 @@ local a = function(arg_1)
 		end;
 		return c;
 	end;
+
 	return b;
 end;
 
@@ -61,3 +62,19 @@ print(f(1));
 print(g(0));
 print(g(0));
 print(g(1));
+
+
+local f = a(1);
+local g1 = f(1);
+local g2 = f(2);
+
+print(g1(0));
+print(g1(0));
+print(g1(0));
+
+
+
+print(g2(0));
+print(g2(0));
+print(g2(0));
+
