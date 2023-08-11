@@ -1,22 +1,11 @@
-local g = function(n) 
-	local add = function() 
-		n = n + 1;
-		return n+1;
+local a = function(arg_1)
+	local b = function(arg_2)
+		local c = function(arg_3)
+			return arg_1 + arg_2 + arg_3;
+		end;
+		return c;
 	end;
-	return add;
+	return b;
 end;
 
-
-local add_1 = g(1);
-local add_2 = g(2);
-
-print(add_1);
-print(add_1());
-print(add_1());
-print(add_1());
-
-
-print(add_1);
-print(add_2());
-print(add_2());
-print(add_2());
+print(a(1)(2)(3));

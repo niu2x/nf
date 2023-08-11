@@ -911,7 +911,7 @@ UpValuePos UpValue_search(Proto* proto, const char* name, StackIndex deep)
 
     if (proto->scope) {
         uint8_t* flags;
-        auto slot = Scope_search(proto->scope, name, &flags, deep);
+        auto slot = Scope_search(proto->scope, name, &flags, true);
         if (slot >= 0) {
             r.deep = deep;
             r.slot = slot;
