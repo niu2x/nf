@@ -44,8 +44,7 @@ enum TokenType {
     TT_FUNCTION,
     TT_EQ,
     TT_RETURN,
-    TT_END,
-    TT_BLOCK,
+    TT_IF,
 };
 
 struct Keyword {
@@ -54,8 +53,9 @@ struct Keyword {
 };
 
 static Keyword keywords[] = {
-    { "local", TT_LOCAL },   { "end", TT_END },     { "function", TT_FUNCTION },
-    { "return", TT_RETURN }, { "block", TT_BLOCK }, { nullptr, 0 },
+    { "local", TT_LOCAL },   { "function", TT_FUNCTION },
+    { "return", TT_RETURN }, { "if", TT_IF },
+    { nullptr, 0 },
 };
 
 struct Token {
@@ -448,6 +448,17 @@ static SingleValue lookup_var(FuncState* fs, Token* token)
 
 static void chunk(FuncState* fs);
 static void func_body(FuncState* fs);
+static void inner_chunk(FuncState* fs)
+{
+    chunk(fs);
+
+    Size tmp_nr = fs->proto->used_slots - Scope_vars_nr(fs->scope, true);
+    if (tmp_nr != 0) {
+        auto ins = INS_FROM_OP_AB(Opcode::POP, tmp_nr);
+        emit(fs, ins, -tmp_nr);
+    }
+    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::CLOSE_UV), 0);
+}
 
 static SingleValue function(FuncState* parent_fs)
 {
@@ -521,7 +532,15 @@ static SingleValue base_elem(FuncState* fs)
         return stmt_local(fs);
     } else if (token->token == TT_FUNCTION) {
         return function(fs);
-    } else {
+    }
+
+    else if (token->token == '{') {
+        next(fs->ls);
+        inner_chunk(fs);
+        expect(fs->ls, '}');
+    }
+
+    else {
         Thread_throw(fs->ls->th, E::PARSE, "when parse expr");
     }
 
@@ -752,31 +771,27 @@ static SingleValue stmt_local(FuncState* fs)
     return single_normal_value(slot, true);
 }
 
-static bool stmt(FuncState* fs)
-{
-    auto token = peek(fs->ls);
-    bool chunk_finished = false;
-    bool inner_scope_finished = false;
+struct StmtResult {
+    bool chunk_finished;
+    SingleValue final_value;
+};
 
+static StmtResult stmt(FuncState* fs)
+{
+    StmtResult r = { false, single_value_none };
+    auto token = peek(fs->ls);
     if (token->token != TT_EOF) {
         if (token->token == TT_RETURN) {
             next(fs->ls);
             ensure_at_top(fs, ensure_normal_value(fs, expr(fs, operations_order)));
             emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
         } else if (token->token == '}') {
-            chunk_finished = true;
-        }
-
-        else if (token->token == '{') {
-            next(fs->ls);
-            chunk(fs);
-            expect(fs->ls, '}');
-            inner_scope_finished = true;
+            r.chunk_finished = true;
         } else {
-            expr(fs, operations_order);
+            r.final_value = expr(fs, operations_order);
         }
     } else {
-        chunk_finished = true;
+        r.chunk_finished = true;
     }
 
     Size tmp_nr = fs->proto->used_slots - Scope_vars_nr(fs->scope, true);
@@ -785,19 +800,16 @@ static bool stmt(FuncState* fs)
         emit(fs, ins, -tmp_nr);
     }
 
-    if (inner_scope_finished)
-        emit(fs, INS_FROM_OP_NO_ARGS(Opcode::CLOSE_UV), 0);
-
-    return chunk_finished;
+    return r;
 }
 
-static bool stmt_with_semi(FuncState* fs)
+static StmtResult stmt_with_semi(FuncState* fs)
 {
-    bool chunk_finished = stmt(fs);
-    if (!chunk_finished) {
+    auto r = stmt(fs);
+    if (!r.chunk_finished) {
         expect(fs->ls, ';');
     }
-    return chunk_finished;
+    return r;
 }
 
 static void chunk(FuncState* fs)
@@ -809,9 +821,9 @@ static void chunk(FuncState* fs)
     fs->scope = &scope;
     fs->proto->scope = fs->scope;
 
-    bool chunk_finished = stmt_with_semi(fs);
-    while (!chunk_finished) {
-        chunk_finished = stmt_with_semi(fs);
+    auto r = stmt_with_semi(fs);
+    while (!r.chunk_finished) {
+        r = stmt_with_semi(fs);
     }
 
     // for(VarIndex i = 0; i < scope.nr; i ++ ){
