@@ -73,15 +73,15 @@ void Proto_append_ins(Thread* th, Proto* self, Instruction ins)
     self->ins[self->ins_nr++] = ins;
 }
 
-StackIndex Proto_insert_uv(Thread* th, Proto* self, uint32_t uv)
+StackIndex Proto_insert_uv(Thread* th, Proto* self, UpValuePos uv)
 {
     for (StackIndex i = 0; i < self->up_values_nr; i++) {
-        if (self->up_values[i] == uv)
+        if (self->up_values[i] == uv.u32)
             return i;
     }
 
     NF_CHECK(th, self->up_values_nr + 1 <= MAX_CONST_NR, "too may uv");
-    self->up_values[self->up_values_nr++] = uv;
+    self->up_values[self->up_values_nr++] = uv.u32;
     return self->up_values_nr - 1;
 }
 

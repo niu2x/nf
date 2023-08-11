@@ -429,8 +429,10 @@ static SingleValue lookup_var(FuncState* fs, Token* token)
     auto var_name = token->seminfo.s->base;
     if ((slot = Scope_search(fs->scope, var_name, nullptr, true)) < 0) {
         UpValuePos uv_pos;
-        if ((uv_pos = UpValue_search(fs->proto->parent, var_name)).deep != 0) {
-            auto uv_index = Proto_insert_uv(fs->ls->th, fs->proto, uv_pos.u32);
+        if ((uv_pos = UpValue_search(fs->ls->th, fs->proto->parent, var_name))
+                .u32
+            != 0xFFFFFFFF) {
+            auto uv_index = Proto_insert_uv(fs->ls->th, fs->proto, uv_pos);
             value = single_up_value(uv_index, true);
         } else {
             TValue key = { .type = Type::String, .obj = token->seminfo.s };
@@ -901,11 +903,12 @@ Scope_search(Scope* self, const char* name, uint8_t** flags, bool recursive)
     return -1;
 }
 
-UpValuePos UpValue_search(Proto* proto, const char* name, StackIndex deep)
+UpValuePos
+UpValue_search(Thread* th, Proto* proto, const char* name, StackIndex deep)
 {
     UpValuePos r;
     if (!proto) {
-        r.u32 = 0;
+        r.u32 = 0xffffffff;
         return r;
     }
 
@@ -913,14 +916,21 @@ UpValuePos UpValue_search(Proto* proto, const char* name, StackIndex deep)
         uint8_t* flags;
         auto slot = Scope_search(proto->scope, name, &flags, true);
         if (slot >= 0) {
-            r.deep = deep;
-            r.slot = slot;
+            r.is_parent_uv = false;
+            r.parent_frame_slot = slot;
             *flags |= 1;
             return r;
         }
     }
 
-    return UpValue_search(proto->parent, name, deep + 1);
+    auto parent_uv = UpValue_search(th, proto->parent, name, deep + 1);
+    if (parent_uv.u32 == 0xffffffff)
+        return parent_uv;
+
+    auto uv_index = Proto_insert_uv(th, proto, parent_uv);
+    r.is_parent_uv = true;
+    r.parent_uv_index = uv_index;
+    return r;
 }
 
 void Scope_insert(Scope* self, const char* name, StackIndex index)

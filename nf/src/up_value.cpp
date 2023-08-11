@@ -7,24 +7,26 @@ UpValue* UpValue_new(Thread* th, uint32_t uv_pos_u32)
     UpValuePos uv_pos;
     uv_pos.u32 = uv_pos_u32;
 
-    TValue* base = th->base;
-    while (--uv_pos.deep > 0) {
-        base = (base - 2)->index + th->stack;
-    }
-    StackIndex abs_stack_index = base + uv_pos.slot - th->stack;
+    if (uv_pos.is_parent_uv) {
+        auto parent_uv_index = uv_pos.parent_uv_index;
+        return th->func->up_values[parent_uv_index];
+    } else {
 
-    if (auto uv = Thread_search_opened_uv(th, abs_stack_index)) {
+        TValue* base = th->base;
+        StackIndex abs_stack_index = base + uv_pos.parent_frame_slot
+                                     - th->stack;
+
+        if (auto uv = Thread_search_opened_uv(th, abs_stack_index)) {
+            return uv;
+        }
+
+        auto uv = NF_ALLOC_ARRAY_P(th, UpValue, 1);
+        uv->type = Type::UpValue;
+        uv->closed = false;
+        uv->abs_stack_index = abs_stack_index;
+        Thread_insert_opened_uv(th, uv);
         return uv;
     }
-
-    auto uv = NF_ALLOC_ARRAY_P(th, UpValue, 1);
-    uv->type = Type::UpValue;
-    uv->closed = false;
-    uv->abs_stack_index = abs_stack_index;
-
-    Thread_insert_opened_uv(th, uv);
-
-    return uv;
 }
 
 UpValue* Thread_search_opened_uv(Thread* th, StackIndex uv)

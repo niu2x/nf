@@ -70,16 +70,16 @@ struct Scope {
     Size nr;
     Scope* parent;
     Thread* th;
-
-    // Size var_slots[MAX_VAR_NR];
 };
 
 union UpValuePos {
     struct {
-        StackIndex deep;
-        StackIndex slot;
+        union {
+            StackIndex parent_frame_slot;
+            StackIndex parent_uv_index;
+        };
+        bool is_parent_uv;
     };
-
     uint32_t u32;
 };
 
@@ -129,7 +129,8 @@ struct Proto : Object {
     Proto* parent;
 };
 
-UpValuePos UpValue_search(Proto* proto, const char* name, StackIndex deep = 1);
+UpValuePos
+UpValue_search(Thread* th, Proto* proto, const char* name, StackIndex deep = 1);
 
 enum class FuncType {
     C,
@@ -158,7 +159,7 @@ Func* Func_new(Thread* th, CFunc cfunc);
 Proto* Proto_new(Thread* th);
 
 void Proto_append_ins(Thread* th, Proto* self, Instruction ins);
-StackIndex Proto_insert_uv(Thread* th, Proto* self, uint32_t uv);
+StackIndex Proto_insert_uv(Thread* th, Proto* self, UpValuePos uv_pos);
 ConstIndex Proto_insert_const(Thread* th, Proto* self, TValue* v);
 // StackIndex Proto_insert_uv(Thread* th, Proto* self, UpValuePos uv_pos);
 
