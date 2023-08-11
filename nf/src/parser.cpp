@@ -386,7 +386,7 @@ static SingleValue const_value(FuncState* fs)
 static SingleValue table_value(FuncState* fs)
 {
     next(fs->ls);
-    expect(fs->ls, '}');
+    expect(fs->ls, ']');
     emit(fs, INS_FROM_OP_NO_ARGS(Opcode::NEW_TABLE), 1);
     return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
 }
@@ -488,11 +488,11 @@ static SingleValue function(FuncState* parent_fs)
     // &(fs.proto->args_nr));
 
     expect(fs.ls, ')');
-    // expect(fs.ls, '{');
+    expect(fs.ls, '{');
 
     func_body(&fs);
 
-    expect(fs.ls, TT_END);
+    expect(fs.ls, '}');
 
     TValue tv_proto = { .type = Type::Proto, .obj = fs.proto };
     emit_const(parent_fs, &tv_proto);
@@ -506,7 +506,7 @@ static SingleValue base_elem(FuncState* fs)
     auto token = peek(fs->ls);
     if (token->token == TT_SYMBOL) {
         return lookup_var(fs, token);
-    } else if (token->token == '{') {
+    } else if (token->token == '[') {
         return table_value(fs);
     } else if (token->token == TT_INTEGER || token->token == TT_NUMBER
                || token->token == TT_STRING) {
@@ -763,14 +763,14 @@ static bool stmt(FuncState* fs)
             next(fs->ls);
             ensure_at_top(fs, ensure_normal_value(fs, expr(fs, operations_order)));
             emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
-        } else if (token->token == TT_END) {
+        } else if (token->token == '}') {
             chunk_finished = true;
         }
 
-        else if (token->token == TT_BLOCK) {
+        else if (token->token == '{') {
             next(fs->ls);
             chunk(fs);
-            expect(fs->ls, TT_END);
+            expect(fs->ls, '}');
             inner_scope_finished = true;
         } else {
             expr(fs, operations_order);
