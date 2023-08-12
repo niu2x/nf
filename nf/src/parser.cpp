@@ -797,36 +797,46 @@ static StmtResult stmt_with_semi(FuncState* fs);
 static StmtResult stmt(FuncState* fs)
 {
     StmtResult r = { false, single_value_none };
-    auto token = peek(fs->ls);
-    if (token->token != TT_EOF) {
-        if (token->token == TT_RETURN) {
-            next(fs->ls);
-            ensure_at_top(fs, ensure_normal_value(fs, expr(fs, operations_order)));
-            emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
-        } else if (token->token == '}') {
+    while (true) {
+
+        auto token = peek(fs->ls);
+        if (token->token != TT_EOF) {
+            if (token->token == TT_RETURN) {
+                next(fs->ls);
+                ensure_at_top(
+                    fs, ensure_normal_value(fs, expr(fs, operations_order)));
+                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
+            } else if (token->token == '}') {
+                r.chunk_finished = true;
+            }
+
+            else if (token->token == TT_IF) {
+                next(fs->ls);
+                expect(fs->ls, '(');
+                auto cond = expr(fs, operations_order);
+                expect(fs->ls, ')');
+                cond = ensure_normal_value(fs, cond);
+                cond = ensure_at_top(fs, cond);
+                auto jump_ins_pos = emit(fs, 0, 0);
+                stmt_with_semi(fs);
+                auto ins_nr = Proto_ins_nr(fs->proto);
+                Proto_update_ins(
+                    fs->proto,
+                    jump_ins_pos,
+                    INS_FROM_OP_ABCD(Opcode::JUMP_IF_FALSE, ins_nr));
+            } else if (token->token == ';') {
+                next(fs->ls);
+                break;
+            }
+
+            else {
+                r.value = expr(fs, operations_order);
+            }
+        } else {
             r.chunk_finished = true;
         }
 
-        else if (token->token == TT_IF) {
-            next(fs->ls);
-            expect(fs->ls, '(');
-            auto cond = expr(fs, operations_order);
-            expect(fs->ls, ')');
-            cond = ensure_normal_value(fs, cond);
-            cond = ensure_at_top(fs, cond);
-            auto jump_ins_pos = emit(fs, 0, 0);
-            stmt_with_semi(fs);
-            auto ins_nr = Proto_ins_nr(fs->proto);
-            Proto_update_ins(fs->proto,
-                             jump_ins_pos,
-                             INS_FROM_OP_ABCD(Opcode::JUMP_IF_FALSE, ins_nr));
-        }
-
-        else {
-            r.value = expr(fs, operations_order);
-        }
-    } else {
-        r.chunk_finished = true;
+        return r;
     }
 
     return r;
@@ -836,7 +846,7 @@ static StmtResult stmt_with_semi(FuncState* fs)
 {
     auto r = stmt(fs);
     if (!r.chunk_finished) {
-        expect(fs->ls, ';');
+        maybe_expect(fs->ls, ';');
     }
     return r;
 }
