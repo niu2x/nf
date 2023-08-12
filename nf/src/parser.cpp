@@ -785,14 +785,14 @@ struct StmtResult {
 };
 
 static StmtResult stmt_with_semi(FuncState* fs);
-static SingleValue one_stmt_or_inner_block(FuncState* fs)
-{
-    auto token = peek(fs->ls);
-    if (token->token != '{') {
-        return expr(fs, operations_order);
-    } else
-        return stmt_with_semi(fs).value;
-};
+// static SingleValue one_stmt_or_inner_block(FuncState* fs)
+// {
+//     auto token = peek(fs->ls);
+//     if (token->token != '{') {
+//         return stmt_with_semi(fs, operations_order);
+//     } else
+//         return stmt_with_semi(fs).value;
+// };
 
 static StmtResult stmt(FuncState* fs)
 {
@@ -815,7 +815,7 @@ static StmtResult stmt(FuncState* fs)
             cond = ensure_normal_value(fs, cond);
             cond = ensure_at_top(fs, cond);
             auto jump_ins_pos = emit(fs, 0, 0);
-            one_stmt_or_inner_block(fs);
+            stmt_with_semi(fs);
             auto ins_nr = Proto_ins_nr(fs->proto);
             Proto_update_ins(fs->proto,
                              jump_ins_pos,
