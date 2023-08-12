@@ -5,7 +5,11 @@ if(EXISTS ${GTest_DIR})
 	foreach(item IN LISTS TEST_FILES)
 		get_filename_component(name ${item} NAME_WE)
 		add_executable(${name} ${item})
-		target_link_libraries(${name} PRIVATE nf_private_lib GTest::gtest_main)
+		target_link_libraries(${name} PRIVATE nf_lib GTest::gtest_main)
+		target_include_directories(${name} PRIVATE 
+			../nf/src 
+    		${boost_include}
+		)
 		gtest_discover_tests(${name})
 	endforeach()
 
