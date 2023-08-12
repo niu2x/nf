@@ -43,6 +43,7 @@ enum TokenType {
     TT_EQ,
     TT_RETURN,
     TT_IF,
+    TT_NIL,
 };
 
 struct Keyword {
@@ -51,9 +52,8 @@ struct Keyword {
 };
 
 static Keyword keywords[] = {
-    { "local", TT_LOCAL },   { "function", TT_FUNCTION },
-    { "return", TT_RETURN }, { "if", TT_IF },
-    { nullptr, 0 },
+    { "local", TT_LOCAL }, { "function", TT_FUNCTION }, { "return", TT_RETURN },
+    { "if", TT_IF },       { "nil", TT_NIL },           { nullptr, 0 },
 };
 
 struct Token {
@@ -540,6 +540,10 @@ static SingleValue base_elem(FuncState* fs)
         return stmt_local(fs);
     } else if (token->token == TT_FUNCTION) {
         return function(fs);
+    } else if (token->token == TT_NIL) {
+        next(fs->ls);
+        emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
+        return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     }
 
     else if (token->token == '{') {
