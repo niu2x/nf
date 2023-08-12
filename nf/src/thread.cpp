@@ -95,6 +95,8 @@ static void Thread_init_step_one(Thread* self)
     self->up_values_alloc = 0;
     self->closed_uv_nr = 0;
 
+    self->debug = false;
+
     MBuffer_init(&(self->tmp_buf));
 }
 
@@ -336,11 +338,16 @@ static int __Thread_run(Thread* self)
 {
     while (self->pc) {
         Instruction ins = *(self->pc++);
-        // printf("run(%ld, %ld) %s %d %d \n",
-        //         self->top - self->base,self->top - self->stack,
-        //        opcode_names[(int)(INS_OP(ins)) ],
-        //        (int)(INS_AB(ins)),
-        //        (int)(INS_CD(ins)));
+        if (self->debug) {
+
+            printf("run(%ld, %ld) %s %d %d \n",
+                   self->top - self->base,
+                   self->top - self->stack,
+                   opcode_names[(int)(INS_OP(ins))],
+                   (int)(INS_AB(ins)),
+                   (int)(INS_CD(ins)));
+        }
+
         switch (INS_OP(ins)) {
             case Opcode::RET_0: {
                 return 0;
@@ -500,7 +507,7 @@ static int __Thread_run(Thread* self)
                 break;
             }
 
-            case Opcode::SET_UV_VALUE: {
+            case Opcode::SET_UP_VALUE: {
                 auto uv_index = (StackIndex)INS_AB(ins);
                 auto value_slot = (StackIndex)INS_CD(ins);
 

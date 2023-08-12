@@ -12,8 +12,7 @@ static cxxopts::Options build_command_args_parser()
     cxxopts::Options options("nf", "TODO: desc!");
     options.add_options()("v,version", "display version");
     options.add_options()("h,help", "display help");
-    options.add_options()("only-lexer", "");
-    options.add_options()("dump", "");
+    options.add_options()("debug", "debug");
     return options;
 }
 
@@ -54,7 +53,11 @@ int main(int argc, char* argv[])
         return 0;
     }
 
+    auto opt_debug = cmd_args["debug"].as<bool>();
+
     auto th = nf::open();
+    nf::set_debug(th, opt_debug);
+
     nf::run(th, stdin);
     nf::close(th);
 

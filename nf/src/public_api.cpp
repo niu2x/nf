@@ -95,4 +95,10 @@ void push_func(ThreadPtr self, CFunc c_func)
     Thread_push_func(th, Func_new(th, c_func));
 }
 
+void set_debug(ThreadPtr self, bool debug)
+{
+    auto th = (Thread*)self;
+    th->debug = debug;
+}
+
 } // namespace nf

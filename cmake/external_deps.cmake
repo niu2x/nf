@@ -29,3 +29,16 @@ ExternalProject_Add(external_googletest
 )
 set(GTest_DIR "${PROJECT_BINARY_DIR}/external_deps/lib/cmake/GTest")
 
+
+# boost header-only
+set(TMP_CMAKE_ARGS "")
+ExternalProject_Add(external_boost
+    GIT_REPOSITORY  https://gitee.com/add358/boost
+    GIT_TAG         1.71.0
+    CMAKE_ARGS      ${TMP_CMAKE_ARGS}
+    CONFIGURE_COMMAND ""
+    # BUILD_COMMAND  ""
+    BUILD_COMMAND   ""
+    INSTALL_COMMAND ""
+)
+set(boost_include ${PROJECT_BINARY_DIR}/external_boost-prefix/src/external_boost)

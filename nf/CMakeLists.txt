@@ -12,8 +12,12 @@ file(GLOB sources ${source_directories})
 configure_file(include/nf/config.h.in include/nf/config.h @ONLY)
 
 target_include_directories(${LIB_NAME} PRIVATE
-    src/
+    src
+    ${boost_include}
 )
+
+message(STATUS "XX ${boost_include}")
+
 target_include_directories(${LIB_NAME} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>  
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/>  
@@ -26,6 +30,7 @@ target_include_directories(${PRIVATE_LIB_NAME} PUBLIC
     ${CMAKE_CURRENT_BINARY_DIR}/ 
     ${CMAKE_CURRENT_SOURCE_DIR}/include 
     ${CMAKE_CURRENT_SOURCE_DIR}/src 
+    ${boost_include}
 )
 
 target_sources(${PRIVATE_LIB_NAME} PRIVATE ${sources})

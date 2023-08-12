@@ -23,6 +23,7 @@ ThreadPtr open();
 void close(ThreadPtr);
 void run(ThreadPtr, const char* code);
 void run(ThreadPtr self, FILE* fp);
+void set_debug(ThreadPtr, bool debug);
 
 void new_table(ThreadPtr self);
 void new_str(ThreadPtr self, const char* sz, int len = 0);

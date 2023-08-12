@@ -232,6 +232,8 @@ struct Thread : Object {
     uint64_t up_values_nr;
     uint64_t up_values_alloc;
     uint64_t closed_uv_nr;
+
+    bool debug;
 };
 
 UpValue* Thread_search_opened_uv(Thread* th, StackIndex uv_pos);

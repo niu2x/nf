@@ -1,6 +1,7 @@
 #ifndef NF_BYTECODE_H
 #define NF_BYTECODE_H
 
+#include <boost/preprocessor.hpp>
 #include "basic_types.h"
 
 namespace nf::imp {
@@ -10,6 +11,12 @@ enum class InsType {
     AB,
     AB_CD,
 };
+
+#define ALL_OPCODE_DESC                                                        \
+    ((RET_0))((RET_TOP))((ADD))((SUB))((MUL))((DIV))((CONST))((LOAD_NIL))(     \
+        (PUSH))((SET))((NEW_TABLE))((TABLE_GET))((TABLE_SET))((POP))((LEN))(   \
+        (NEG))((CALL))((NEW_NF_FUNC))((GET_UP_VALUE))((SET_UP_VALUE))(         \
+        (CLOSE_UV))
 
 // enum class Opcode : uint16_t;
 
@@ -22,31 +29,12 @@ enum class InsType {
     visitor(visitor, RET_0, "RET_0", NO_ARGS)                                  \
         visitor(visitor, RET_TOP, "RET_TOP", NO_ARGS)
 
+#define Opcode_enum_define(r, data, desc) BOOST_PP_SEQ_ELEM(0, desc),
 enum class Opcode : uint16_t {
-    RET_0,
-    RET_TOP,
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    CONST,
-    LOAD_NIL,
-    PUSH,
-    SET,
-    NEW_TABLE,
-    TABLE_SET,
-    TABLE_GET,
-    POP,
-    LEN,
-    NEG,
-    CALL,
-    NEW_NF_FUNC,
-    GET_UP_VALUE,
-    SET_UV_VALUE,
-    OPEN_UP_VALUE,
-    CLOSE_UV,
-
+    BOOST_PP_SEQ_FOR_EACH(Opcode_enum_define, ~, ALL_OPCODE_DESC)
 };
+
+extern const char* opcode_names[];
 
 // NO_ARGS(48)_OP(16)
 
