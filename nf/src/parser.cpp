@@ -1,5 +1,3 @@
-
-
 #include <stdio.h>
 #include <ctype.h>
 
@@ -395,6 +393,7 @@ static SingleValue ensure_at_top(FuncState* fs, SingleValue value)
 {
     NF_ASSERT(fs->ls->th, value.type == SingleValueType::NORMAL,
         "must be normal value");
+
     if (value.index != MAX_USED_SLOT(fs)) {
         emit(fs, INS_FROM_OP_AB(Opcode::PUSH, value.index), 1);
         value.index = MAX_USED_SLOT(fs);
@@ -446,18 +445,28 @@ static SingleValue lookup_var(FuncState* fs, Token* token)
     return value;
 }
 
-static void chunk(FuncState* fs);
+static SingleValue chunk(FuncState* fs);
 static void func_body(FuncState* fs);
-static void inner_chunk(FuncState* fs)
+static SingleValue inner_chunk(FuncState* fs)
 {
-    chunk(fs);
+    auto r = chunk(fs);
+    r = ensure_normal_value(fs, r);
 
-    Size tmp_nr = fs->proto->used_slots - Scope_vars_nr(fs->scope, true);
-    if (tmp_nr != 0) {
-        auto ins = INS_FROM_OP_AB(Opcode::POP, tmp_nr);
-        emit(fs, ins, -tmp_nr);
+    Size tmp_nr = fs->proto->used_slots - Scope_vars_nr2(fs->scope);
+    emit(fs, INS_FROM_OP_AB(Opcode::CLOSE_UV, tmp_nr), 0);
+
+    if (tmp_nr >= 1) {
+        auto ins = INS_FROM_OP_AB_CD(
+            Opcode::SET, Scope_vars_nr2(fs->scope), r.index);
+        emit(fs, ins, 0);
+
+        if (tmp_nr > 1) {
+            ins = INS_FROM_OP_AB(Opcode::POP, tmp_nr - 1);
+            emit(fs, ins, -tmp_nr + 1);
+        }
     }
-    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::CLOSE_UV), 0);
+
+    return r;
 }
 
 static SingleValue function(FuncState* parent_fs)
@@ -536,8 +545,9 @@ static SingleValue base_elem(FuncState* fs)
 
     else if (token->token == '{') {
         next(fs->ls);
-        inner_chunk(fs);
+        auto r = inner_chunk(fs);
         expect(fs->ls, '}');
+        return r;
     }
 
     else {
@@ -689,7 +699,6 @@ static SingleValue call_or_table_access(FuncState* fs, const char** operations)
                 while (true) {
                     auto v = expr(fs, operations_order);
                     v = ensure_normal_value(fs, v);
-
                     NF_ASSERT(fs->ls->th,
                         v.type == SingleValueType::NORMAL,
                         "operand must normal value");
@@ -773,7 +782,7 @@ static SingleValue stmt_local(FuncState* fs)
 
 struct StmtResult {
     bool chunk_finished;
-    SingleValue final_value;
+    SingleValue value;
 };
 
 static StmtResult stmt(FuncState* fs)
@@ -788,16 +797,10 @@ static StmtResult stmt(FuncState* fs)
         } else if (token->token == '}') {
             r.chunk_finished = true;
         } else {
-            r.final_value = expr(fs, operations_order);
+            r.value = expr(fs, operations_order);
         }
     } else {
         r.chunk_finished = true;
-    }
-
-    Size tmp_nr = fs->proto->used_slots - Scope_vars_nr(fs->scope, true);
-    if (tmp_nr != 0) {
-        auto ins = INS_FROM_OP_AB(Opcode::POP, tmp_nr);
-        emit(fs, ins, -tmp_nr);
     }
 
     return r;
@@ -812,7 +815,7 @@ static StmtResult stmt_with_semi(FuncState* fs)
     return r;
 }
 
-static void chunk(FuncState* fs)
+static SingleValue chunk(FuncState* fs)
 {
     Scope scope;
     Scope_init(&scope, fs->ls->th);
@@ -820,20 +823,29 @@ static void chunk(FuncState* fs)
     scope.parent = fs->scope;
     fs->scope = &scope;
     fs->proto->scope = fs->scope;
-
     auto r = stmt_with_semi(fs);
+    SingleValue result = single_value_none;
     while (!r.chunk_finished) {
+        Size tmp_nr = fs->proto->used_slots - Scope_vars_nr2(fs->scope);
+        if (tmp_nr != 0) {
+            auto ins = INS_FROM_OP_AB(Opcode::POP, tmp_nr);
+            emit(fs, ins, -tmp_nr);
+        }
+
+        result = r.value;
         r = stmt_with_semi(fs);
     }
 
-    // for(VarIndex i = 0; i < scope.nr; i ++ ){
-    //     if(scope.flags[i] & 1) {
-
-    //     }
+    // Size tmp_nr = fs->proto->used_slots - Scope_vars_nr2(fs->scope);
+    // if (tmp_nr != 0) {
+    //     auto ins = INS_FROM_OP_AB(Opcode::POP, tmp_nr);
+    //     emit(fs, ins, -tmp_nr);
     // }
 
     fs->scope = fs->scope->parent;
     fs->proto->scope = fs->scope;
+
+    return result;
 }
 
 static void func_body(FuncState* fs)

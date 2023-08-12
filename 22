@@ -1,0 +1,44 @@
+run(0, 4) LOAD_NIL 0 0 
+run(1, 5) CONST 0 0 
+run(2, 6) NEW_NF_FUNC 0 0 
+run(2, 6) SET 0 1 
+run(2, 6) POP 1 0 
+run(1, 5) CONST 1 0 
+run(2, 6) CONST 2 0 
+run(3, 7) CONST 3 0 
+run(4, 8) CONST 4 0 
+run(5, 9) CONST 5 0 
+run(6, 10) CONST 6 0 
+run(7, 11) PUSH 0 0 
+run(8, 12) PUSH 1 0 
+run(9, 13) PUSH 2 0 
+run(10, 14) PUSH 3 0 
+run(11, 15) PUSH 4 0 
+run(12, 16) PUSH 5 0 
+run(13, 17) PUSH 6 0 
+run(14, 18) CALL 7 1 
+run(2, 23) CONST 0 0 
+run(3, 24) TABLE_GET 35531 2 
+run(4, 25) PUSH 0 0 
+run(5, 26) CALL 3 1 
+1
+run(4, 25) POP 2 0 
+run(2, 23) CONST 0 0 
+run(3, 24) TABLE_GET 35531 2 
+run(4, 25) PUSH 1 0 
+run(5, 26) CALL 3 1 
+2
+run(4, 25) POP 2 0 
+run(2, 23) CONST 0 0 
+run(3, 24) TABLE_GET 35531 2 
+run(4, 25) ADD 0 1 
+run(5, 26) CONST 1 0 
+run(6, 27) ADD 4 5 
+run(7, 28) PUSH 3 0 
+run(8, 29) PUSH 6 0 
+run(9, 30) CALL 7 1 
+4
+run(8, 29) POP 6 0 
+run(2, 23) RET_0 0 0 
+run(8, 12) POP 7 0 
+run(1, 5) RET_0 0 0 

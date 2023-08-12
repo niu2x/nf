@@ -250,11 +250,12 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
     }                                                                          \
     Thread_push(self, &result);
 
-static void __Thread_close_uv(Thread* self)
+static void __Thread_close_uv(Thread* self, StackIndex will_pop)
 {
     for (uint64_t i = self->closed_uv_nr; i < self->up_values_nr; i++) {
 
-        if (self->up_values[i]->abs_stack_index >= self->top - self->stack) {
+        if (self->up_values[i]->abs_stack_index
+            >= self->top - will_pop - self->stack) {
 
             auto closed_uv_nr = self->closed_uv_nr;
 
@@ -299,8 +300,33 @@ static void __Thread_return(Thread* self,
     } else
         self->top -= (retn - desire_retvals_nr);
 
-    __Thread_close_uv(self);
+    __Thread_close_uv(self, 0);
 }
+
+// static const char* opcode_names[] = {
+//     "RET_0",
+//     "RET_TOP",
+//     "ADD",
+//     "SUB",
+//     "MUL",
+//     "DIV",
+//     "CONST",
+//     "LOAD_NIL",
+//     "PUSH",
+//     "SET",
+//     "NEW_TABLE",
+//     "TABLE_SET",
+//     "TABLE_GET",
+//     "POP",
+//     "LEN",
+//     "NEG",
+//     "CALL",
+//     "NEW_NF_FUNC",
+//     "GET_UP_VALUE",
+//     "SET_UV_VALUE",
+//     "OPEN_UP_VALUE",
+//     "CLOSE_UV",
+// };
 
 static void Thread_call(Thread* self,
                         StackIndex func_i,
@@ -310,9 +336,9 @@ static int __Thread_run(Thread* self)
 {
     while (self->pc) {
         Instruction ins = *(self->pc++);
-        // printf("run(%ld) %s %d %d \n",
-        //         self->top - self->base,
-        //        opcode_names[(int)(INS_OP(ins)) - 100],
+        // printf("run(%ld, %ld) %s %d %d \n",
+        //         self->top - self->base,self->top - self->stack,
+        //        opcode_names[(int)(INS_OP(ins)) ],
         //        (int)(INS_AB(ins)),
         //        (int)(INS_CD(ins)));
         switch (INS_OP(ins)) {
@@ -492,7 +518,7 @@ static int __Thread_run(Thread* self)
             }
 
             case Opcode::CLOSE_UV: {
-                __Thread_close_uv(self);
+                __Thread_close_uv(self, (StackIndex)INS_AB(ins));
 
                 break;
             }

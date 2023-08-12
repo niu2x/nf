@@ -96,6 +96,14 @@ NF_INLINE Size Scope_vars_nr(Scope* self, bool recursive = false)
                   : 0);
 }
 
+NF_INLINE Size Scope_vars_nr2(Scope* self)
+{
+    if (self->nr == 0)
+        return self->parent ? Scope_vars_nr2(self->parent) : 0;
+
+    return self->var_slots[self->nr - 1] + 1;
+}
+
 struct UpValue : Object {
     bool closed;
     union {
