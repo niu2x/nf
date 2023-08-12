@@ -63,7 +63,7 @@ Proto* Proto_new(Thread* th)
     return proto;
 }
 
-void Proto_append_ins(Thread* th, Proto* self, Instruction ins)
+InsIndex Proto_append_ins(Thread* th, Proto* self, Instruction ins)
 {
     if (self->ins_nr == self->ins_alloc) {
         Size new_alloc = (self->ins_nr * 3 / 2 + 16);
@@ -71,6 +71,12 @@ void Proto_append_ins(Thread* th, Proto* self, Instruction ins)
         self->ins_alloc = new_alloc;
     }
     self->ins[self->ins_nr++] = ins;
+    return self->ins_nr - 1;
+}
+
+void Proto_update_ins(Proto* self, InsIndex i, Instruction ins)
+{
+    self->ins[i] = ins;
 }
 
 StackIndex Proto_insert_uv(Thread* th, Proto* self, UpValuePos uv)

@@ -252,12 +252,12 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
     }                                                                          \
     Thread_push(self, &result);
 
-static void __Thread_close_uv(Thread* self, StackIndex will_pop)
+static void __Thread_close_uv_to(Thread* self, StackIndex new_top)
 {
     for (uint64_t i = self->closed_uv_nr; i < self->up_values_nr; i++) {
 
         if (self->up_values[i]->abs_stack_index
-            >= self->top - will_pop - self->stack) {
+            >= new_top + self->base - self->stack) {
 
             auto closed_uv_nr = self->closed_uv_nr;
 
@@ -274,6 +274,11 @@ static void __Thread_close_uv(Thread* self, StackIndex will_pop)
             self->closed_uv_nr++;
         }
     }
+}
+
+static void __Thread_close_uv(Thread* self, StackIndex will_pop)
+{
+    __Thread_close_uv_to(self, self->top - will_pop - self->base);
 }
 
 static void __Thread_return(Thread* self,
@@ -438,10 +443,10 @@ static int __Thread_run(Thread* self)
                 break;
             }
 
-            case Opcode::POP: {
+            case Opcode::POP_TO: {
 
-                auto tmp_nr = (StackIndex)INS_AB(ins);
-                self->top -= tmp_nr;
+                auto new_top = (StackIndex)INS_AB(ins);
+                self->top = new_top + self->base;
 
                 break;
             }
@@ -524,14 +529,26 @@ static int __Thread_run(Thread* self)
                 break;
             }
 
-            case Opcode::CLOSE_UV: {
-                __Thread_close_uv(self, (StackIndex)INS_AB(ins));
+            case Opcode::CLOSE_UV_TO: {
+
+                __Thread_close_uv_to(self, (StackIndex)INS_AB(ins));
+                break;
+            }
+
+            case Opcode::JUMP_IF_FALSE: {
+                auto cond = self->top - 1;
+                if (cond->type == Type::NIL) {
+                    InsIndex target = (InsIndex)INS_ABCD(ins);
+                    self->pc = self->func->proto->ins + target;
+                }
 
                 break;
             }
 
             default: {
-                fprintf(stderr, "unsupport bytecode %u\n", (int)INS_OP(ins));
+                fprintf(stderr,
+                        "unsupport bytecode %s\n",
+                        opcode_names[(int)INS_OP(ins)]);
                 exit(1);
             }
         }

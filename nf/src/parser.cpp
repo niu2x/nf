@@ -332,11 +332,19 @@ static const char* operations_order[] = {
     nullptr,
 };
 
-static void emit(FuncState* fs, Instruction ins, int slots_changed)
+static InsIndex emit(FuncState* fs, Instruction ins, int slots_changed)
 {
-
-    Proto_append_ins(fs->ls->th, fs->proto, ins);
+    auto ii = Proto_append_ins(fs->ls->th, fs->proto, ins);
     fs->proto->used_slots += slots_changed;
+    return ii;
+}
+
+static InsIndex emit_pop_to(FuncState* fs, StackIndex new_top)
+{
+    auto ins = INS_FROM_OP_AB(Opcode::POP_TO, new_top);
+    auto ii = emit(fs, ins, 0);
+    fs->proto->used_slots = new_top;
+    return ii;
 }
 
 static void emit_const(FuncState* fs, TValue* c)
@@ -451,20 +459,11 @@ static SingleValue inner_chunk(FuncState* fs)
 {
     auto r = chunk(fs);
     r = ensure_normal_value(fs, r);
+    r = ensure_at_top(fs, r);
 
-    Size tmp_nr = fs->proto->used_slots - Scope_vars_nr2(fs->scope);
-    emit(fs, INS_FROM_OP_AB(Opcode::CLOSE_UV, tmp_nr), 0);
+    emit(fs, INS_FROM_OP_AB(Opcode::CLOSE_UV_TO, Scope_vars_nr2(fs->scope)), 0);
 
-    if (tmp_nr >= 1) {
-        auto ins = INS_FROM_OP_AB_CD(
-            Opcode::SET, Scope_vars_nr2(fs->scope), r.index);
-        emit(fs, ins, 0);
-
-        if (tmp_nr > 1) {
-            ins = INS_FROM_OP_AB(Opcode::POP, tmp_nr - 1);
-            emit(fs, ins, -tmp_nr + 1);
-        }
-    }
+    emit_pop_to(fs, r.index + 1);
 
     return r;
 }
@@ -785,6 +784,16 @@ struct StmtResult {
     SingleValue value;
 };
 
+static StmtResult stmt_with_semi(FuncState* fs);
+static SingleValue one_stmt_or_inner_block(FuncState* fs)
+{
+    auto token = peek(fs->ls);
+    if (token->token != '{') {
+        return expr(fs, operations_order);
+    } else
+        return stmt_with_semi(fs).value;
+};
+
 static StmtResult stmt(FuncState* fs)
 {
     StmtResult r = { false, single_value_none };
@@ -796,7 +805,24 @@ static StmtResult stmt(FuncState* fs)
             emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
         } else if (token->token == '}') {
             r.chunk_finished = true;
-        } else {
+        }
+
+        else if (token->token == TT_IF) {
+            next(fs->ls);
+            expect(fs->ls, '(');
+            auto cond = expr(fs, operations_order);
+            expect(fs->ls, ')');
+            cond = ensure_normal_value(fs, cond);
+            cond = ensure_at_top(fs, cond);
+            auto jump_ins_pos = emit(fs, 0, 0);
+            one_stmt_or_inner_block(fs);
+            auto ins_nr = Proto_ins_nr(fs->proto);
+            Proto_update_ins(fs->proto,
+                             jump_ins_pos,
+                             INS_FROM_OP_ABCD(Opcode::JUMP_IF_FALSE, ins_nr));
+        }
+
+        else {
             r.value = expr(fs, operations_order);
         }
     } else {
@@ -828,19 +854,12 @@ static SingleValue chunk(FuncState* fs)
     while (!r.chunk_finished) {
         Size tmp_nr = fs->proto->used_slots - Scope_vars_nr2(fs->scope);
         if (tmp_nr != 0) {
-            auto ins = INS_FROM_OP_AB(Opcode::POP, tmp_nr);
-            emit(fs, ins, -tmp_nr);
+            emit_pop_to(fs, Scope_vars_nr2(fs->scope));
         }
 
         result = r.value;
         r = stmt_with_semi(fs);
     }
-
-    // Size tmp_nr = fs->proto->used_slots - Scope_vars_nr2(fs->scope);
-    // if (tmp_nr != 0) {
-    //     auto ins = INS_FROM_OP_AB(Opcode::POP, tmp_nr);
-    //     emit(fs, ins, -tmp_nr);
-    // }
 
     fs->scope = fs->scope->parent;
     fs->proto->scope = fs->scope;

@@ -116,8 +116,8 @@ UpValue* UpValue_new(Thread* th, uint32_t uv_pos);
 
 struct Proto : Object {
     Instruction* ins;
-    Size ins_nr;
-    Size ins_alloc;
+    InsIndex ins_nr;
+    InsIndex ins_alloc;
 
     StackIndex used_slots;
 
@@ -166,7 +166,9 @@ Func* Func_new(Thread* th, Proto* proto);
 Func* Func_new(Thread* th, CFunc cfunc);
 Proto* Proto_new(Thread* th);
 
-void Proto_append_ins(Thread* th, Proto* self, Instruction ins);
+InsIndex Proto_append_ins(Thread* th, Proto* self, Instruction ins);
+NF_INLINE InsIndex Proto_ins_nr(Proto* self) { return self->ins_nr; }
+void Proto_update_ins(Proto* self, InsIndex i, Instruction ins);
 StackIndex Proto_insert_uv(Thread* th, Proto* self, UpValuePos uv_pos);
 ConstIndex Proto_insert_const(Thread* th, Proto* self, TValue* v);
 // StackIndex Proto_insert_uv(Thread* th, Proto* self, UpValuePos uv_pos);

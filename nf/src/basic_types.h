@@ -35,11 +35,14 @@ using Number = double;
 using VarIndex = int16_t;
 using ConstIndex = int16_t;
 
+using InsIndex = uint32_t;
+
 // 主要受限于16位的VarIndex、ConstIndex、StackIndex
 #define MAX_VAR_NR   512
 #define MAX_CONST_NR 30000
 #define MAX_STACK_NR 30000
 #define MAX_UV_NR    64
+#define MAX_INS_NR   (0xFFFFFFFF - 16)
 
 // 最大的函数参数个数
 #define MAX_ARGS 256

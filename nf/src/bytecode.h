@@ -14,9 +14,9 @@ enum class InsType {
 
 #define ALL_OPCODE_DESC                                                        \
     ((RET_0))((RET_TOP))((ADD))((SUB))((MUL))((DIV))((CONST))((LOAD_NIL))(     \
-        (PUSH))((SET))((NEW_TABLE))((TABLE_GET))((TABLE_SET))((POP))((LEN))(   \
-        (NEG))((CALL))((NEW_NF_FUNC))((GET_UP_VALUE))((SET_UP_VALUE))(         \
-        (CLOSE_UV))
+        (PUSH))((SET))((NEW_TABLE))((TABLE_GET))((TABLE_SET))((POP_TO))(       \
+        (LEN))((NEG))((CALL))((NEW_NF_FUNC))((GET_UP_VALUE))((SET_UP_VALUE))(  \
+        (CLOSE_UV_TO))((JUMP_IF_FALSE))
 
 // enum class Opcode : uint16_t;
 
