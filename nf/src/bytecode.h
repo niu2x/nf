@@ -16,7 +16,8 @@ enum class InsType {
     ((RET_0))((RET_TOP))((ADD))((SUB))((MUL))((DIV))((CONST))((LOAD_NIL))(     \
         (PUSH))((SET))((NEW_TABLE))((TABLE_GET))((TABLE_SET))((POP_TO))(       \
         (LEN))((NEG))((CALL))((NEW_NF_FUNC))((GET_UP_VALUE))((SET_UP_VALUE))(  \
-        (CLOSE_UV_TO))((JUMP_IF_FALSE))((LESS))((GREATE))((EQ))((LE))((GE))
+        (CLOSE_UV_TO))((JUMP))((JUMP_IF_FALSE))((LESS))((GREATE))((EQ))((LE))( \
+        (GE))((NE))
 
 #define VISIT_ALL_INS(visitor)                                                 \
     visitor(visitor, RET_0, "RET_0", NO_ARGS)                                  \

@@ -55,4 +55,44 @@ Str* Str_concat(Thread* th, Str* a, Str* b)
     return Str_new(th, th->tmp_buf.data, a->nr + b->nr);
 }
 
+int Str_cmp(Str* a, Str* b)
+{
+    auto a_ptr = a->base;
+    auto b_ptr = b->base;
+
+    auto a_nr = a->nr;
+    auto b_nr = b->nr;
+
+    while (a_nr && b_nr) {
+        if (*a_ptr < *b_ptr)
+            return -1;
+        if (*a_ptr > *b_ptr)
+            return 1;
+
+        a_ptr++;
+        b_ptr++;
+        a_nr--;
+        b_nr--;
+    }
+
+    if (a_nr)
+        return 1;
+
+    if (b_nr)
+        return -1;
+
+    return 0;
+}
+
+bool Str_equal(Str* a, Str* b)
+{
+    if (a->hash != b->hash)
+        return false;
+
+    if (a->nr != b->nr)
+        return false;
+
+    return Str_cmp(a, b) == 0;
+}
+
 } // namespace nf::imp

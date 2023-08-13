@@ -53,9 +53,10 @@ else{
 }
 
 
+
 locaf f
 
-if(2>1) {
+if(2>11) {
 	local x = 1
 	f = function(){
 		return x;

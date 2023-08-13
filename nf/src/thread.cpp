@@ -210,69 +210,36 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
     return Thread_load(self, LoadS_read, &ls, name);
 }
 
-// Error Thread_pcall(Thread* self, ProtectedFunc f, void* u) { }
-
-// template<class T1, class T2>
-// auto op_add(T1 t1, T2 t2) {
-//     return t1 + t2;
-// }
-
-// template<class T1, class T2>
-// auto op_sub(T1 t1, T2 t2) {
-//     return t1 - t2;
-// }
-
-#define BIN_OP(_OP_)                                                           \
-    StackIndex first_slot = INS_AB(ins);                                       \
-    StackIndex second_slot = INS_CD(ins);                                      \
-    TValue* second = stack_slot(self, second_slot);                            \
-    TValue* first = stack_slot(self, first_slot);                              \
+#define NUMBERIC_BIN_OP(_OP_)                                                  \
     TValue result;                                                             \
     if (first->type == Type::Integer) {                                        \
         if (second->type == Type::Integer) {                                   \
             result = { .type = Type::Integer, .i = first->i _OP_ second->i };  \
         } else if (second->type == Type::Number) {                             \
             result = { .type = Type::Number, .n = first->i _OP_ second->n };   \
-        } else {                                                               \
-            Thread_throw(self, E::OP_NUM);                                     \
         }                                                                      \
     } else if (first->type == Type::Number) {                                  \
         if (second->type == Type::Integer) {                                   \
             result = { .type = Type::Number, .n = first->n _OP_ second->i };   \
         } else if (second->type == Type::Number) {                             \
             result = { .type = Type::Number, .n = first->n _OP_ second->n };   \
-        } else {                                                               \
-            Thread_throw(self, E::OP_NUM);                                     \
         }                                                                      \
-    } else if (first->type == Type::String && second->type == first->type) {   \
-        result = { .type = Type::String,                                       \
-                   .obj = Str_concat(self, tv2str(first), tv2str(second)) };   \
-    } else {                                                                   \
-        Thread_throw(self, E::OP_NUM);                                         \
     }                                                                          \
     Thread_push(self, &result);
 
-#define CMP_OP(_OP_)                                                           \
-    StackIndex first_slot = INS_AB(ins);                                       \
-    StackIndex second_slot = INS_CD(ins);                                      \
-    TValue* second = stack_slot(self, second_slot);                            \
-    TValue* first = stack_slot(self, first_slot);                              \
+#define NUMBERIC_CMP_OP(_OP_)                                                  \
     TValue result;                                                             \
     if (first->type == Type::Integer) {                                        \
         if (second->type == Type::Integer) {                                   \
             result = { .type = Type::Bool, .b = first->i _OP_ second->i };     \
         } else if (second->type == Type::Number) {                             \
             result = { .type = Type::Bool, .b = first->i _OP_ second->n };     \
-        } else {                                                               \
-            Thread_throw(self, E::OP_NUM);                                     \
         }                                                                      \
     } else if (first->type == Type::Number) {                                  \
         if (second->type == Type::Integer) {                                   \
             result = { .type = Type::Bool, .b = first->n _OP_ second->i };     \
         } else if (second->type == Type::Number) {                             \
             result = { .type = Type::Bool, .b = first->n _OP_ second->n };     \
-        } else {                                                               \
-            Thread_throw(self, E::OP_NUM);                                     \
         }                                                                      \
     }                                                                          \
     Thread_push(self, &result);
@@ -335,31 +302,6 @@ static void __Thread_return(Thread* self,
     __Thread_close_uv(self, 0);
 }
 
-// static const char* opcode_names[] = {
-//     "RET_0",
-//     "RET_TOP",
-//     "ADD",
-//     "SUB",
-//     "MUL",
-//     "DIV",
-//     "CONST",
-//     "LOAD_NIL",
-//     "PUSH",
-//     "SET",
-//     "NEW_TABLE",
-//     "TABLE_SET",
-//     "TABLE_GET",
-//     "POP",
-//     "LEN",
-//     "NEG",
-//     "CALL",
-//     "NEW_NF_FUNC",
-//     "GET_UP_VALUE",
-//     "SET_UV_VALUE",
-//     "OPEN_UP_VALUE",
-//     "CLOSE_UV",
-// };
-
 static void Thread_call(Thread* self,
                         StackIndex func_i,
                         StackIndex desire_retvals_nr);
@@ -369,7 +311,6 @@ static int __Thread_run(Thread* self)
     while (self->pc) {
         Instruction ins = *(self->pc++);
         if (self->debug) {
-
             printf("run(%ld, %ld) %s %d %d \n",
                    self->top - self->base,
                    self->top - self->stack,
@@ -388,22 +329,68 @@ static int __Thread_run(Thread* self)
             }
 
             case Opcode::ADD: {
-                BIN_OP(+);
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_BIN_OP(+);
+                }
+
+                else if (is_str(first) && is_str(second)) {
+                    auto concat = Str_concat(
+                        self, tv2str(first), tv2str(second));
+                    TValue result = {
+                        .type = Type::String,
+                        .obj = concat,
+                    };
+                    Thread_push(self, &result);
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
                 break;
             }
 
             case Opcode::SUB: {
-                BIN_OP(-);
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_BIN_OP(-);
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
                 break;
             }
 
             case Opcode::MUL: {
-                BIN_OP(*);
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_BIN_OP(*);
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
                 break;
             }
 
             case Opcode::DIV: {
-                BIN_OP(/);
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_BIN_OP(/);
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
                 break;
             }
 
@@ -555,8 +542,14 @@ static int __Thread_run(Thread* self)
             }
 
             case Opcode::CLOSE_UV_TO: {
-
                 __Thread_close_uv_to(self, (StackIndex)INS_AB(ins));
+                break;
+            }
+
+            case Opcode::JUMP: {
+                InsIndex target = (InsIndex)INS_ABCD(ins);
+                self->pc = self->func->proto->ins + target;
+
                 break;
             }
 
@@ -571,8 +564,111 @@ static int __Thread_run(Thread* self)
                 break;
             }
 
+            case Opcode::LESS: {
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(<);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = Str_cmp(tv2str(first), tv2str(second));
+                    Thread_push(self, x == -1);
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                break;
+            }
+
+            case Opcode::LE: {
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(<=);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = Str_cmp(tv2str(first), tv2str(second));
+                    Thread_push(self, x <= 0);
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                break;
+            }
+
+            case Opcode::GE: {
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(>=);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = Str_cmp(tv2str(first), tv2str(second));
+                    Thread_push(self, x >= 0);
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                break;
+            }
+
             case Opcode::GREATE: {
-                CMP_OP(>);
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(>);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = Str_cmp(tv2str(first), tv2str(second));
+                    Thread_push(self, x == 1);
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                break;
+            }
+
+            case Opcode::EQ: {
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(==);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = Str_equal(tv2str(first), tv2str(second));
+                    Thread_push(self, x);
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                break;
+            }
+
+            case Opcode::NE: {
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(!=);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = !Str_equal(tv2str(first), tv2str(second));
+                    Thread_push(self, x);
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
                 break;
             }
 
@@ -611,8 +707,6 @@ static void Thread_call(Thread* self,
     if (func->func_type == FuncType::NF) {
         desire_args_nr = func->proto->args_nr;
     }
-
-    // printf("desire_args_nr %d %d\n", desire_args_nr, args_nr);
 
     for (int i = 0; i < args_nr; i++) {
         Thread_push(self, args++);
@@ -700,6 +794,12 @@ void Thread_run(Thread* self, FILE* fp)
 }
 
 void Thread_push_nil(Thread* self) { Thread_push(self, &nil); }
+
+void Thread_push(Thread* self, bool b)
+{
+    TValue v = { .type = Type::Bool, .b = b };
+    Thread_push(self, &v);
+}
 
 void Thread_push(Thread* self, Integer i)
 {

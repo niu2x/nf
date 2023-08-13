@@ -42,6 +42,7 @@ void Thread_run(Thread* self, FILE* fp);
 void Thread_push(Thread* self, const TValue* tv);
 void Thread_push(Thread* self, Integer i);
 void Thread_push_nil(Thread* self);
+void Thread_push(Thread* self, bool b);
 void Thread_push_index(Thread* self, StackIndex index);
 void Thread_push_pc(Thread* self, const Instruction* ins);
 Error Thread_pcall(Thread* self, ProtectedFunc f, void* ud);
@@ -55,6 +56,8 @@ Error protected_parser(Thread* th, ZIO* z, const char* name);
 
 struct Str;
 Str* Str_new(Thread* th, const char* ptr, Size nr);
+int Str_cmp(Str* a, Str* b);
+bool Str_equal(Str* a, Str* b);
 Str* Str_new_fmt(Thread* th, const char* fmt, ...);
 Str* Str_new_fmt(Thread* th, const char* fmt, va_list);
 Str* Str_concat(Thread* th, Str*, Str*);

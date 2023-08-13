@@ -42,10 +42,12 @@ enum TokenType {
     TT_FUNCTION,
     TT_RETURN,
     TT_IF,
+    TT_ELSE,
     TT_NIL,
     TT_LE,
-    TT_GE,
     TT_EQ,
+    TT_GE,
+    TT_NE,
 };
 
 struct Keyword {
@@ -55,7 +57,8 @@ struct Keyword {
 
 static Keyword keywords[] = {
     { "local", TT_LOCAL }, { "function", TT_FUNCTION }, { "return", TT_RETURN },
-    { "if", TT_IF },       { "nil", TT_NIL },           { nullptr, 0 },
+    { "if", TT_IF },       { "else", TT_ELSE },         { "nil", TT_NIL },
+    { nullptr, 0 },
 };
 
 struct Token {
@@ -155,14 +158,23 @@ static Token next_token(LexState* ls)
                 return token_build(TT_EOF);
             }
 
+            case '!': {
+                next_chr(ls);
+                if (ls->current == '=') {
+                    next_chr(ls);
+                    return token_build(TT_NE);
+                } else {
+                    return token_build('!');
+                }
+            }
+
             case '<':
-            case '>':
-            case '=': {
+            case '=':
+            case '>': {
                 char pre = ls->current;
                 next_chr(ls);
                 if (ls->current == '=') {
                     next_chr(ls);
-
                     return token_build(pre - '<' + TT_LE);
                 } else {
                     return token_build(pre);
@@ -337,7 +349,7 @@ struct OperationRule {
 
 static const OperationRule operations_order[] = {
     { '2', { '=', 0 } },
-    { '2', { '<', '>', TT_LE, TT_LE, TT_GE, 0 } },
+    { '2', { '<', '>', TT_LE, TT_EQ, TT_NE, TT_GE, 0 } },
     { '2', { '+', '-', 0 } },
     { '2', { '/', '*', '%', 0 } },
     { '1', { '-', '#', 0 } },
@@ -466,19 +478,13 @@ static SingleValue lookup_var(FuncState* fs, Token* token)
     return value;
 }
 
-static SingleValue chunk(FuncState* fs);
+static void chunk(FuncState* fs);
 static void func_body(FuncState* fs);
-static SingleValue inner_chunk(FuncState* fs)
+static void block(FuncState* fs)
 {
-    auto r = chunk(fs);
-    r = ensure_normal_value(fs, r);
-    r = ensure_at_top(fs, r);
-
-    emit(fs, INS_FROM_OP_AB(Opcode::CLOSE_UV_TO, Scope_vars_nr2(fs->scope)), 0);
-
-    emit_pop_to(fs, r.index + 1);
-
-    return r;
+    chunk(fs);
+    emit(fs, INS_FROM_OP_AB(Opcode::CLOSE_UV_TO, fs->proto->used_slots), 0);
+    emit_pop_to(fs, fs->proto->used_slots);
 }
 
 static SingleValue function(FuncState* parent_fs)
@@ -495,6 +501,8 @@ static SingleValue function(FuncState* parent_fs)
     fs.proto = proto;
     proto->name = Str_new(fs.ls->th, "", 0);
     proto->parent = parent_fs->proto;
+
+    scope.parent_used_slots = 0;
 
     expect(fs.ls, TT_FUNCTION);
     expect(fs.ls, '(');
@@ -516,8 +524,6 @@ static SingleValue function(FuncState* parent_fs)
     }
 
     fs.proto->args_nr = args_nr;
-    // printf("s.proto->args_nr %d %p\n", fs.proto->args_nr,
-    // &(fs.proto->args_nr));
 
     expect(fs.ls, ')');
     expect(fs.ls, '{');
@@ -561,9 +567,10 @@ static SingleValue base_elem(FuncState* fs)
 
     else if (token->token == '{') {
         next(fs->ls);
-        auto r = inner_chunk(fs);
+        block(fs);
         expect(fs->ls, '}');
-        return r;
+        emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
+        return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     }
 
     else {
@@ -659,6 +666,10 @@ static SingleValue bin_op(FuncState* fs, const OperationRule* operations)
 
                     case TT_EQ: {
                         SIMPLE_BIN_OP(Opcode::EQ);
+                        break;
+                    }
+                    case TT_NE: {
+                        SIMPLE_BIN_OP(Opcode::NE);
                         break;
                     }
 #undef SIMPLE_BIN_OP
@@ -828,22 +839,27 @@ static SingleValue stmt_local(FuncState* fs)
 
 struct StmtResult {
     bool chunk_finished;
-    SingleValue value;
+    // SingleValue value;
 };
 
 static StmtResult stmt_with_semi(FuncState* fs);
-// static SingleValue one_stmt_or_inner_block(FuncState* fs)
-// {
-//     auto token = peek(fs->ls);
-//     if (token->token != '{') {
-//         return stmt_with_semi(fs, operations_order);
-//     } else
-//         return stmt_with_semi(fs).value;
-// };
+static void single_stmt_block(FuncState* fs);
+
+static void embed_stmt_block(FuncState* fs)
+{
+    auto token = peek(fs->ls);
+    if (token->token == '{') {
+        next(fs->ls);
+        block(fs);
+        expect(fs->ls, '}');
+    } else {
+        single_stmt_block(fs);
+    }
+}
 
 static StmtResult stmt(FuncState* fs)
 {
-    StmtResult r = { false, single_value_none };
+    StmtResult r = { false };
     while (true) {
 
         auto token = peek(fs->ls);
@@ -853,6 +869,7 @@ static StmtResult stmt(FuncState* fs)
                 ensure_at_top(
                     fs, ensure_normal_value(fs, expr(fs, operations_order)));
                 emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
+
             } else if (token->token == '}') {
                 r.chunk_finished = true;
             }
@@ -861,31 +878,53 @@ static StmtResult stmt(FuncState* fs)
                 next(fs->ls);
                 expect(fs->ls, '(');
                 auto cond = expr(fs, operations_order);
+
                 expect(fs->ls, ')');
                 cond = ensure_normal_value(fs, cond);
                 cond = ensure_at_top(fs, cond);
-                auto jump_ins_pos = emit(fs, 0, 0);
-                stmt_with_semi(fs);
+                auto jump_else_pos = emit(fs, 0, 0);
+                embed_stmt_block(fs);
+                auto has_else = maybe_expect(fs->ls, TT_ELSE);
+                InsIndex jump_end_pos = 0;
+                if (has_else) {
+                    jump_end_pos = emit(fs, 0, 0);
+                }
+
                 auto ins_nr = Proto_ins_nr(fs->proto);
                 Proto_update_ins(
                     fs->proto,
-                    jump_ins_pos,
+                    jump_else_pos,
                     INS_FROM_OP_ABCD(Opcode::JUMP_IF_FALSE, ins_nr));
+
+                if (has_else) {
+                    embed_stmt_block(fs);
+                    ins_nr = Proto_ins_nr(fs->proto);
+
+                    Proto_update_ins(fs->proto,
+                                     jump_end_pos,
+                                     INS_FROM_OP_ABCD(Opcode::JUMP, ins_nr));
+                }
             } else if (token->token == ';') {
                 next(fs->ls);
                 break;
             }
 
             else {
-                r.value = expr(fs, operations_order);
+                expr(fs, operations_order);
             }
         } else {
             r.chunk_finished = true;
         }
 
+        Size tmp_nr = fs->proto->used_slots - Scope_vars_nr2(fs->scope);
+        if (tmp_nr != 0) {
+            emit_pop_to(fs, Scope_vars_nr2(fs->scope));
+        }
+
         return r;
     }
 
+    // never reach
     return r;
 }
 
@@ -898,7 +937,7 @@ static StmtResult stmt_with_semi(FuncState* fs)
     return r;
 }
 
-static SingleValue chunk(FuncState* fs)
+static void chunk(FuncState* fs)
 {
     Scope scope;
     Scope_init(&scope, fs->ls->th);
@@ -906,22 +945,42 @@ static SingleValue chunk(FuncState* fs)
     scope.parent = fs->scope;
     fs->scope = &scope;
     fs->proto->scope = fs->scope;
-    auto r = stmt_with_semi(fs);
-    SingleValue result = single_value_none;
-    while (!r.chunk_finished) {
-        Size tmp_nr = fs->proto->used_slots - Scope_vars_nr2(fs->scope);
-        if (tmp_nr != 0) {
-            emit_pop_to(fs, Scope_vars_nr2(fs->scope));
-        }
+    scope.parent_used_slots = fs->proto->used_slots;
 
-        result = r.value;
+    auto r = stmt_with_semi(fs);
+
+    while (!r.chunk_finished) {
         r = stmt_with_semi(fs);
     }
 
     fs->scope = fs->scope->parent;
     fs->proto->scope = fs->scope;
 
-    return result;
+    fs->proto->used_slots = scope.parent_used_slots;
+}
+
+static void single_stmt_chunk(FuncState* fs)
+{
+    Scope scope;
+    Scope_init(&scope, fs->ls->th);
+    scope.parent = fs->scope;
+    fs->scope = &scope;
+    fs->proto->scope = fs->scope;
+    scope.parent_used_slots = fs->proto->used_slots;
+
+    stmt_with_semi(fs);
+    fs->scope = fs->scope->parent;
+    fs->proto->scope = fs->scope;
+
+    fs->proto->used_slots = scope.parent_used_slots;
+}
+
+static void single_stmt_block(FuncState* fs)
+{
+    single_stmt_chunk(fs);
+
+    emit(fs, INS_FROM_OP_AB(Opcode::CLOSE_UV_TO, fs->proto->used_slots), 0);
+    emit_pop_to(fs, fs->proto->used_slots);
 }
 
 static void func_body(FuncState* fs)

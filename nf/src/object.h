@@ -72,6 +72,7 @@ struct Scope {
     Size nr;
     Scope* parent;
     Thread* th;
+    StackIndex parent_used_slots;
 };
 
 union UpValuePos {
@@ -101,8 +102,7 @@ NF_INLINE Size Scope_vars_nr(Scope* self, bool recursive = false)
 NF_INLINE Size Scope_vars_nr2(Scope* self)
 {
     if (self->nr == 0)
-        return self->parent ? Scope_vars_nr2(self->parent) : 0;
-
+        return self->parent_used_slots;
     return self->var_slots[self->nr - 1] + 1;
 }
 
@@ -256,6 +256,10 @@ void Thread_insert_opened_uv(Thread* th, UpValue* uv);
 #define tv2proto(tv) obj2proto(tv2obj(tv))
 #define tv2func(tv)  obj2func(tv2obj(tv))
 #define tv2table(tv) obj2table(tv2obj(tv))
+
+#define is_numberic(tv)                                                        \
+    ((tv)->type == Type::Number || (tv)->type == Type::Integer)
+#define is_str(tv) (tv)->type == Type::String
 
 NF_INLINE void TValue_set_nil(TValue* tv) { tv->type = Type::NIL; }
 NF_INLINE void TValue_set_table(TValue* tv, Table* obj)
