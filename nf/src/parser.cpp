@@ -40,10 +40,12 @@ enum TokenType {
     TT_STRING,
     TT_LOCAL,
     TT_FUNCTION,
-    TT_EQ,
     TT_RETURN,
     TT_IF,
     TT_NIL,
+    TT_LE,
+    TT_GE,
+    TT_EQ,
 };
 
 struct Keyword {
@@ -153,6 +155,20 @@ static Token next_token(LexState* ls)
                 return token_build(TT_EOF);
             }
 
+            case '<':
+            case '>':
+            case '=': {
+                char pre = ls->current;
+                next_chr(ls);
+                if (ls->current == '=') {
+                    next_chr(ls);
+
+                    return token_build(pre - '<' + TT_LE);
+                } else {
+                    return token_build(pre);
+                }
+            }
+
             case ',':
             case '#':
             case ';':
@@ -169,15 +185,6 @@ static Token next_token(LexState* ls)
                 auto c = ls->current;
                 next_chr(ls);
                 return token_build(c);
-            }
-
-            case '=': {
-                next_chr(ls);
-                if (ls->current == '=') {
-                    next_chr(ls);
-                    return token_build(TT_EQ);
-                } else
-                    return token_build('=');
             }
 
             case '0':
@@ -323,13 +330,19 @@ static NF_INLINE bool maybe_expect(LexState* ls, int token)
     }
 }
 
-static const char* operations_order[] = {
-    "2=",
-    "2+-",
-    "2*/%",
-    "1-#",
-    "X([",
-    nullptr,
+struct OperationRule {
+    char type;
+    int operations[8];
+};
+
+static const OperationRule operations_order[] = {
+    { '2', { '=', 0 } },
+    { '2', { '<', '>', TT_LE, TT_LE, TT_GE, 0 } },
+    { '2', { '+', '-', 0 } },
+    { '2', { '/', '*', '%', 0 } },
+    { '1', { '-', '#', 0 } },
+    { 'X', { '(', '[', 0 } },
+    { 0, { 0 } },
 };
 
 static InsIndex emit(FuncState* fs, Instruction ins, int slots_changed)
@@ -353,7 +366,7 @@ static void emit_const(FuncState* fs, TValue* c)
     emit(fs, INS_FROM_OP_AB(Opcode::CONST, const_index), 1);
 }
 
-static SingleValue expr(FuncState* fs, const char** operations);
+static SingleValue expr(FuncState* fs, const OperationRule* rule);
 
 #define MAX_USED_SLOT(fs) ((StackIndex)((fs)->proto->used_slots - 1))
 
@@ -562,13 +575,13 @@ static SingleValue base_elem(FuncState* fs)
 }
 
 static void assignemnt(FuncState* fs,
-                       const char** operations,
+                       const OperationRule* rule,
                        SingleValue* left_value)
 {
 
     NF_CHECK(fs->ls->th, left_value->assignable, "not assignable");
 
-    auto second = expr(fs, operations + 1);
+    auto second = expr(fs, rule + 1);
     second = ensure_normal_value(fs, second);
 
     if (left_value->type == SingleValueType::NORMAL) {
@@ -588,12 +601,12 @@ static void assignemnt(FuncState* fs,
     }
 }
 
-static SingleValue bin_op(FuncState* fs, const char** operations)
+static SingleValue bin_op(FuncState* fs, const OperationRule* operations)
 {
     auto first = expr(fs, operations + 1);
     auto target_op = peek(fs->ls)->token;
     while (true) {
-        auto op_ptr = (*operations) + 1;
+        auto op_ptr = operations->operations;
         while (*op_ptr) {
             if (*op_ptr == target_op) {
 
@@ -625,10 +638,38 @@ static SingleValue bin_op(FuncState* fs, const char** operations)
                         SIMPLE_BIN_OP(Opcode::MUL);
                         break;
                     }
+
+                    case '<': {
+                        SIMPLE_BIN_OP(Opcode::LESS);
+                        break;
+                    }
+                    case '>': {
+                        SIMPLE_BIN_OP(Opcode::GREATE);
+                        break;
+                    }
+
+                    case TT_LE: {
+                        SIMPLE_BIN_OP(Opcode::LE);
+                        break;
+                    }
+                    case TT_GE: {
+                        SIMPLE_BIN_OP(Opcode::GE);
+                        break;
+                    }
+
+                    case TT_EQ: {
+                        SIMPLE_BIN_OP(Opcode::EQ);
+                        break;
+                    }
 #undef SIMPLE_BIN_OP
                         // '%':
                     case '=': {
                         assignemnt(fs, operations, &first);
+                        break;
+                    }
+
+                    default: {
+                        Thread_throw(fs->ls->th, E::PARSE, "unsupport bin_op");
                         break;
                     }
                 }
@@ -647,16 +688,17 @@ static SingleValue bin_op(FuncState* fs, const char** operations)
     return first;
 }
 
-static SingleValue uni_op(FuncState* fs, const char** operations)
+static SingleValue uni_op(FuncState* fs, const OperationRule* rule)
 {
 
     auto target_op = peek(fs->ls)->token;
 
-    auto op_ptr = (*operations) + 1;
+    auto op_ptr = rule->operations;
+    ;
     while (*op_ptr) {
         if (*op_ptr == target_op) {
             next(fs->ls);
-            auto first = expr(fs, operations);
+            auto first = expr(fs, rule);
             first = ensure_normal_value(fs, first);
 
             switch (target_op) {
@@ -678,13 +720,14 @@ static SingleValue uni_op(FuncState* fs, const char** operations)
         op_ptr++;
     }
 
-    return expr(fs, operations + 1);
+    return expr(fs, rule + 1);
 }
 
-static SingleValue call_or_table_access(FuncState* fs, const char** operations)
+static SingleValue call_or_table_access(FuncState* fs,
+                                        const OperationRule* rule)
 {
 
-    auto first = expr(fs, operations + 1);
+    auto first = expr(fs, rule + 1);
     auto token = peek(fs->ls)->token;
 
     while (true) {
@@ -743,17 +786,17 @@ static SingleValue call_or_table_access(FuncState* fs, const char** operations)
     }
 }
 
-static SingleValue expr(FuncState* fs, const char** operations)
+static SingleValue expr(FuncState* fs, const OperationRule* rule)
 {
-    if (*operations == nullptr) {
+    if (rule->type == 0) {
         return base_elem(fs);
     } else {
-        if (**operations == '2') {
-            return bin_op(fs, operations);
-        } else if (**operations == '1') {
-            return uni_op(fs, operations);
-        } else if (**operations == 'X') {
-            return call_or_table_access(fs, operations);
+        if (rule->type == '2') {
+            return bin_op(fs, rule);
+        } else if (rule->type == '1') {
+            return uni_op(fs, rule);
+        } else if (rule->type == 'X') {
+            return call_or_table_access(fs, rule);
         } else {
             Thread_throw(fs->ls->th, E::PARSE, "when parse expr");
         }

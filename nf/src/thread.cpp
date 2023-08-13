@@ -252,6 +252,31 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
     }                                                                          \
     Thread_push(self, &result);
 
+#define CMP_OP(_OP_)                                                           \
+    StackIndex first_slot = INS_AB(ins);                                       \
+    StackIndex second_slot = INS_CD(ins);                                      \
+    TValue* second = stack_slot(self, second_slot);                            \
+    TValue* first = stack_slot(self, first_slot);                              \
+    TValue result;                                                             \
+    if (first->type == Type::Integer) {                                        \
+        if (second->type == Type::Integer) {                                   \
+            result = { .type = Type::Bool, .b = first->i _OP_ second->i };     \
+        } else if (second->type == Type::Number) {                             \
+            result = { .type = Type::Bool, .b = first->i _OP_ second->n };     \
+        } else {                                                               \
+            Thread_throw(self, E::OP_NUM);                                     \
+        }                                                                      \
+    } else if (first->type == Type::Number) {                                  \
+        if (second->type == Type::Integer) {                                   \
+            result = { .type = Type::Bool, .b = first->n _OP_ second->i };     \
+        } else if (second->type == Type::Number) {                             \
+            result = { .type = Type::Bool, .b = first->n _OP_ second->n };     \
+        } else {                                                               \
+            Thread_throw(self, E::OP_NUM);                                     \
+        }                                                                      \
+    }                                                                          \
+    Thread_push(self, &result);
+
 static void __Thread_close_uv_to(Thread* self, StackIndex new_top)
 {
     for (uint64_t i = self->closed_uv_nr; i < self->up_values_nr; i++) {
@@ -537,11 +562,17 @@ static int __Thread_run(Thread* self)
 
             case Opcode::JUMP_IF_FALSE: {
                 auto cond = self->top - 1;
-                if (cond->type == Type::NIL) {
+                if (cond->type == Type::NIL
+                    || (cond->type == Type::Bool && cond->b == false)) {
                     InsIndex target = (InsIndex)INS_ABCD(ins);
                     self->pc = self->func->proto->ins + target;
                 }
 
+                break;
+            }
+
+            case Opcode::GREATE: {
+                CMP_OP(>);
                 break;
             }
 

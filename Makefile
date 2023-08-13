@@ -1,5 +1,3 @@
-test: test-release test-debug
-
 build-nf-release: configure-release
 	cmake -S. -Bbuild-release -DCMAKE_BUILD_TYPE=Release -DNF_BUILD_TEST=ON; 
 	cmake --build  build-release/ 
@@ -27,6 +25,8 @@ configure-debug:
 test-debug: build-nf-debug
 	cd build-debug; ctest; cd ..;
 	./tests/test.sh build-debug/nf/nf
+
+test: test-release test-debug
 
 .PHONY: test-release build-nf-release configure-release \
 		test-debug build-nf-debug configure-debug \

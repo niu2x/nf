@@ -28,6 +28,8 @@ struct TValue {
         Object* obj;
         const Instruction* pc;
         StackIndex index;
+
+        bool b;
     };
 };
 

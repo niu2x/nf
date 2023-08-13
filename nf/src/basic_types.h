@@ -13,6 +13,8 @@ enum class Type : uint8_t {
     NIL,
     Integer,
     Number,
+    Bool,
+
     Table,
     String,
     Func,
