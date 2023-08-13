@@ -6,10 +6,12 @@ namespace nf::imp {
 
 static void Func_init_up_values(Thread* th, Func* self)
 {
-    auto proto = self->proto;
-    for (StackIndex i = 0; i < proto->up_values_nr; i++) {
-        UpValue* uv = UpValue_new(th, proto->up_values[i]);
-        self->up_values[self->up_values_nr++] = uv;
+    if (self->func_type == FuncType::NF) {
+        auto proto = self->proto;
+        for (StackIndex i = 0; i < proto->up_values_nr; i++) {
+            UpValue* uv = UpValue_new(th, proto->up_values[i]);
+            self->up_values[self->up_values_nr++] = uv;
+        }
     }
 }
 
