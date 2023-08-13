@@ -1,5 +1,7 @@
 # build
 build
+build-debug
+build-release
 dist
 
 # Prerequisites

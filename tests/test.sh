@@ -1,7 +1,12 @@
 #!/bin/bash
 
+NF=build/nf/nf
+if [[ "$1" != "" ]]; then
+	NF="$1"
+fi;
+
 run_test() {
-	result=$(build/nf/nf < $1)
+	result=$(${NF} < $1)
 	expect=$(cat ${1/.nf/.expect})
 
 	if [[ "$result" !=  "$expect" ]]; then
