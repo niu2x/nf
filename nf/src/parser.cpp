@@ -102,6 +102,25 @@ struct SingleValue {
     bool assignable;
 };
 
+struct OperationRule {
+    char type;
+    int operations[8];
+};
+
+static SingleValue expr(FuncState* fs, const OperationRule* rule);
+
+#define MAX_USED_SLOT(fs) ((StackIndex)((fs)->proto->used_slots - 1))
+
+#define SINGLE_NORMAL_VALUE_AT_TOP(fs, assignable)                             \
+    single_normal_value(MAX_USED_SLOT(fs), (assignable))
+
+#define SINGLE_TABLE_SLOT_KEY_AT_TOP(fs, table, assignable)                    \
+    single_table_slot((table), MAX_USED_SLOT(fs), (assignable))
+
+static void stmt_local(FuncState* fs);
+static void chunk(FuncState* fs);
+static void func_body(FuncState* fs);
+
 static SingleValue single_normal_value(StackIndex index, bool assignable)
 {
     return { .uv_index = 0,
@@ -360,11 +379,6 @@ static NF_INLINE bool maybe_expect(LexState* ls, int token)
     }
 }
 
-struct OperationRule {
-    char type;
-    int operations[8];
-};
-
 static const OperationRule operations_order[] = {
     { '2', { '=', 0 } },
     { '2', { '<', '>', TT_LE, TT_EQ, TT_NE, TT_GE, 0 } },
@@ -395,16 +409,6 @@ static void emit_const(FuncState* fs, TValue* c)
     auto const_index = Proto_insert_const(fs->ls->th, fs->proto, c);
     emit(fs, INS_FROM_OP_AB(Opcode::CONST, const_index), 1);
 }
-
-static SingleValue expr(FuncState* fs, const OperationRule* rule);
-
-#define MAX_USED_SLOT(fs) ((StackIndex)((fs)->proto->used_slots - 1))
-
-#define SINGLE_NORMAL_VALUE_AT_TOP(fs, assignable)                             \
-    single_normal_value(MAX_USED_SLOT(fs), (assignable))
-
-#define SINGLE_TABLE_SLOT_KEY_AT_TOP(fs, table, assignable)                    \
-    single_table_slot((table), MAX_USED_SLOT(fs), (assignable))
 
 static SingleValue const_value(FuncState* fs)
 {
@@ -470,8 +474,6 @@ static SingleValue ensure_normal_value(FuncState* fs, SingleValue value)
     }
 }
 
-static void stmt_local(FuncState* fs);
-
 static SingleValue lookup_var(FuncState* fs, Token* token)
 {
     StackIndex slot;
@@ -496,8 +498,6 @@ static SingleValue lookup_var(FuncState* fs, Token* token)
     return value;
 }
 
-static void chunk(FuncState* fs);
-static void func_body(FuncState* fs);
 static void clear_scope_slots(FuncState* fs)
 {
     emit(fs, INS_FROM_OP_AB(Opcode::CLOSE_UV_TO, fs->proto->used_slots), 0);
