@@ -127,7 +127,7 @@ struct Proto : Object {
     StackIndex up_values_nr;
 
     ConstIndex const_nr;
-    ConstIndex const_alloc;
+    Size const_alloc;
 
     TValue* const_arr;
 

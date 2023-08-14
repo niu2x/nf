@@ -6,37 +6,52 @@
 
 namespace nf::imp {
 
-enum class InsType {
+enum class InsType : uint16_t {
     NO_ARGS,
-    AB,
-    AB_CD,
+    AB_CD_EF,
 };
 
 #define ALL_OPCODE_DESC                                                        \
-    ((RET_0))((RET_TOP))((ADD))((SUB))((MUL))((DIV))((CONST))((LOAD_NIL))(     \
-        (PUSH))((SET))((NEW_TABLE))((TABLE_GET))((TABLE_SET))((POP_TO))(       \
-        (LEN))((NEG))((CALL))((NEW_NF_FUNC))((GET_UP_VALUE))((SET_UP_VALUE))(  \
-        (CLOSE_UV_TO))((JUMP))((JUMP_IF_FALSE))((LESS))((GREATE))((EQ))((LE))( \
-        (GE))((NE))
+    ((RET_0)(NO_ARGS))((RET_TOP)(NO_ARGS))((ADD)(AB_CD_EF))((SUB)(AB_CD_EF))(  \
+        (MUL)(AB_CD_EF))((DIV)(AB_CD_EF))((EQ)(AB_CD_EF))((LE)(AB_CD_EF))(     \
+        (GE)(AB_CD_EF))((NE)(AB_CD_EF))((LESS)(AB_CD_EF))((GREATE)(AB_CD_EF))( \
+        (CONST)(NO_ARGS))((LOAD_NIL)(NO_ARGS))((PUSH)(NO_ARGS))(               \
+        (SET)(NO_ARGS))((NEW_TABLE)(NO_ARGS))((TABLE_GET)(NO_ARGS))(           \
+        (TABLE_SET)(NO_ARGS))((POP_TO)(NO_ARGS))((LEN)(NO_ARGS))(              \
+        (NEG)(NO_ARGS))((CALL)(NO_ARGS))((NEW_NF_FUNC)(NO_ARGS))(              \
+        (GET_UP_VALUE)(NO_ARGS))((SET_UP_VALUE)(NO_ARGS))(                     \
+        (CLOSE_UV_TO)(NO_ARGS))((JUMP)(NO_ARGS))((JUMP_IF_FALSE)(NO_ARGS))
 
 #define VISIT_ALL_INS(visitor)                                                 \
     visitor(visitor, RET_0, "RET_0", NO_ARGS)                                  \
         visitor(visitor, RET_TOP, "RET_TOP", NO_ARGS)
 
 #define Opcode_enum_define(r, data, desc) BOOST_PP_SEQ_ELEM(0, desc),
+
 enum class Opcode : uint16_t {
     BOOST_PP_SEQ_FOR_EACH(Opcode_enum_define, ~, ALL_OPCODE_DESC)
 };
 
-extern const char* opcode_names[];
+#define Opcode_type_define(r, data, desc)                                      \
+    BOOST_PP_CAT(BOOST_PP_SEQ_ELEM(0, desc), _TYPE)                            \
+        = (uint16_t)(InsType::BOOST_PP_SEQ_ELEM(1, desc)),
 
-// NO_ARGS(48)_OP(16)
+enum class OpcodeType : uint16_t {
+    BOOST_PP_SEQ_FOR_EACH(Opcode_type_define, ~, ALL_OPCODE_DESC)
+};
+
+struct InsDesc {
+    InsType type;
+};
+
+extern const char* opcode_names[];
 
 #define INS_OP(op)              (((Opcode)((op)&0xFFFF)))
 #define INS_ABCDEF(op)          ((op) >> 16)
 #define INS_ABCD(op)            ((op) >> 32)
 #define INS_AB(op)              (((op) >> 48) & 0xFFFF)
 #define INS_CD(op)              (((op) >> 32) & 0xFFFF)
+#define INS_EF(op)              (((op) >> 16) & 0xFFFF)
 
 #define INS_FROM_OP_NO_ARGS(op) ((Instruction)(op))
 
@@ -52,6 +67,35 @@ extern const char* opcode_names[];
 #define INS_FROM_OP_AB_CD(op, AB, CD)                                          \
     (INS_FROM_OP_NO_ARGS(op) | (((Instruction)((AB))) << 48)                   \
         | (((Instruction)((CD))) << 32))
+
+#define INS_FROM_OP_AB_CD_EF(op, AB, CD, EF)                                   \
+    (INS_FROM_OP_NO_ARGS(op) | (((Instruction)((AB))) << 48)                   \
+     | (((Instruction)((CD))) << 32) | (((Instruction)((EF))) << 16))
+
+template <uint16_t OPCODE, int ARG_NR>
+class InsBuilder {
+public:
+};
+
+template <uint16_t OPCODE>
+class InsBuilder<OPCODE, (uint16_t)(InsType::NO_ARGS)> {
+public:
+    static Instruction build() { return INS_FROM_OP_NO_ARGS(OPCODE); }
+};
+
+template <uint16_t OPCODE>
+class InsBuilder<OPCODE, (uint16_t)(InsType::AB_CD_EF)> {
+public:
+    static Instruction build(uint16_t ab, uint16_t cd, uint16_t ef)
+    {
+        return INS_FROM_OP_AB_CD_EF(OPCODE, ab, cd, ef);
+    }
+};
+
+#define INS_BUILD(op, ...)                                                     \
+    InsBuilder<(uint16_t)(Opcode::op),                                         \
+               (uint16_t)(BOOST_PP_CAT(OpcodeType::op,                         \
+                                       _TYPE))>::build(__VA_ARGS__)
 
 } // namespace nf::imp
 

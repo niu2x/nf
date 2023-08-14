@@ -6,13 +6,6 @@
 #include "bytecode.h"
 #include "object.h"
 
-// static const char* opcode_names[] = {
-//     "TEST", "RET_0",     "RET_TOP",   "ADD",         "SUB",
-//     "MUL",  "DIV",       "CONST",     "LOAD_NIL",    "PUSH",
-//     "SET",  "NEW_TABLE", "TABLE_SET", "TABLE_GET",   "POP",
-//     "LEN",  "NEG",       "CALL",      "NEW_NF_FUNC",
-// };
-
 // #define printf(...)
 
 namespace nf::imp {
@@ -636,51 +629,53 @@ static SingleValue bin_op(FuncState* fs, const OperationRule* operations)
     first = ensure_normal_value(fs, first);                                    \
     auto second = expr(fs, operations + 1);                                    \
     second = ensure_normal_value(fs, second);                                  \
-    emit(fs, INS_FROM_OP_AB_CD((opcode), first.index, second.index), 1);       \
+    emit(fs,                                                                   \
+         INS_BUILD(opcode, first.index, second.index, fs->proto->used_slots),  \
+         1);                                                                   \
     first = SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
 
                     case '+': {
-                        SIMPLE_BIN_OP(Opcode::ADD);
+                        SIMPLE_BIN_OP(ADD);
                         break;
                     }
                     case '-': {
-                        SIMPLE_BIN_OP(Opcode::SUB);
+                        SIMPLE_BIN_OP(SUB);
                         break;
                     }
                     case '/': {
-                        SIMPLE_BIN_OP(Opcode::DIV);
+                        SIMPLE_BIN_OP(DIV);
 
                         break;
                     }
                     case '*': {
-                        SIMPLE_BIN_OP(Opcode::MUL);
+                        SIMPLE_BIN_OP(MUL);
                         break;
                     }
 
                     case '<': {
-                        SIMPLE_BIN_OP(Opcode::LESS);
+                        SIMPLE_BIN_OP(LESS);
                         break;
                     }
                     case '>': {
-                        SIMPLE_BIN_OP(Opcode::GREATE);
+                        SIMPLE_BIN_OP(GREATE);
                         break;
                     }
 
                     case TT_LE: {
-                        SIMPLE_BIN_OP(Opcode::LE);
+                        SIMPLE_BIN_OP(LE);
                         break;
                     }
                     case TT_GE: {
-                        SIMPLE_BIN_OP(Opcode::GE);
+                        SIMPLE_BIN_OP(GE);
                         break;
                     }
 
                     case TT_EQ: {
-                        SIMPLE_BIN_OP(Opcode::EQ);
+                        SIMPLE_BIN_OP(EQ);
                         break;
                     }
                     case TT_NE: {
-                        SIMPLE_BIN_OP(Opcode::NE);
+                        SIMPLE_BIN_OP(NE);
                         break;
                     }
 #undef SIMPLE_BIN_OP
@@ -886,7 +881,7 @@ static StmtResult stmt(FuncState* fs)
                 next(fs->ls);
                 ensure_at_top(
                     fs, ensure_normal_value(fs, expr(fs, operations_order)));
-                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
+                emit(fs, INS_BUILD(RET_TOP), 0);
 
             } else if (token->token == '}') {
                 r.chunk_finished = true;
@@ -1044,7 +1039,7 @@ static void single_stmt_block(FuncState* fs)
 static void func_body(FuncState* fs)
 {
     chunk(fs);
-    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_0), 0);
+    emit(fs, INS_BUILD(RET_0), 0);
 }
 
 static Proto* y_parser(Thread* th, ZIO* z, MBuffer* buff, const char* name)
