@@ -310,6 +310,12 @@ static void Thread_call(Thread* self,
                         StackIndex func_i,
                         StackIndex desire_retvals_nr);
 
+#define FIX_TOP(th, result_slot)                                               \
+    {                                                                          \
+        while (th->top - 1 - th->base < result_slot)                           \
+            Thread_push_nil(th);                                               \
+    }
+
 static int __Thread_run(Thread* self)
 {
     while (self->pc) {
@@ -336,6 +342,7 @@ static int __Thread_run(Thread* self)
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
                 StackIndex result_slot = INS_EF(ins);
+                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -361,6 +368,8 @@ static int __Thread_run(Thread* self)
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
 
+                FIX_TOP(self, result_slot);
+
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
                 if (is_numberic(first) && is_numberic(second)) {
@@ -376,6 +385,8 @@ static int __Thread_run(Thread* self)
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
 
+                FIX_TOP(self, result_slot);
+
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
                 if (is_numberic(first) && is_numberic(second)) {
@@ -390,6 +401,8 @@ static int __Thread_run(Thread* self)
                 StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
+
+                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -575,6 +588,7 @@ static int __Thread_run(Thread* self)
                 StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
+                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -598,6 +612,8 @@ static int __Thread_run(Thread* self)
                 StackIndex result_slot = INS_EF(ins);
                 StackIndex second_slot = INS_CD(ins);
 
+                FIX_TOP(self, result_slot);
+
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
                 if (is_numberic(first) && is_numberic(second)) {
@@ -620,6 +636,8 @@ static int __Thread_run(Thread* self)
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
 
+                FIX_TOP(self, result_slot);
+
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
                 if (is_numberic(first) && is_numberic(second)) {
@@ -641,6 +659,7 @@ static int __Thread_run(Thread* self)
                 StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
+                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -664,6 +683,8 @@ static int __Thread_run(Thread* self)
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
 
+                FIX_TOP(self, result_slot);
+
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
                 if (is_numberic(first) && is_numberic(second)) {
@@ -685,6 +706,8 @@ static int __Thread_run(Thread* self)
                 StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
+
+                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
