@@ -13,11 +13,11 @@ enum class InsType {
 };
 
 #define ALL_OPCODE_DESC                                                        \
-    ((RET_0))((RET_TOP))((ADD))((SUB))((MUL))((DIV))((CONST))((LOAD_NIL))(     \
-        (PUSH))((SET))((NEW_TABLE))((TABLE_GET))((TABLE_SET))((POP_TO))(       \
-        (LEN))((NEG))((CALL))((NEW_NF_FUNC))((GET_UP_VALUE))((SET_UP_VALUE))(  \
-        (CLOSE_UV_TO))((JUMP))((JUMP_IF_FALSE))((LESS))((GREATE))((EQ))((LE))( \
-        (GE))((NE))
+    ((RET_0)(NO_ARGS))((RET_TOP))((ADD))((SUB))((MUL))((DIV))((CONST))(        \
+        (LOAD_NIL))((PUSH))((SET))((NEW_TABLE))((TABLE_GET))((TABLE_SET))(     \
+        (POP_TO))((LEN))((NEG))((CALL))((NEW_NF_FUNC))((GET_UP_VALUE))(        \
+        (SET_UP_VALUE))((CLOSE_UV_TO))((JUMP))((JUMP_IF_FALSE))((LESS))(       \
+        (GREATE))((EQ))((LE))((GE))((NE))
 
 #define VISIT_ALL_INS(visitor)                                                 \
     visitor(visitor, RET_0, "RET_0", NO_ARGS)                                  \
@@ -27,6 +27,9 @@ enum class InsType {
 enum class Opcode : uint16_t {
     BOOST_PP_SEQ_FOR_EACH(Opcode_enum_define, ~, ALL_OPCODE_DESC)
 };
+
+// #define Opcode_build_func_define(r, data, desc) NF_INLINE Instruction ins_
+// BOOST_PP_SEQ_FOR_EACH(Opcode_build_macro_define, ~, ALL_OPCODE_DESC)
 
 extern const char* opcode_names[];
 
