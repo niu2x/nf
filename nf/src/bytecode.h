@@ -9,18 +9,19 @@ namespace nf::imp {
 enum class InsType : uint16_t {
     NO_ARGS,
     AB_CD_EF,
+    AB_CD,
 };
 
 #define ALL_OPCODE_DESC                                                        \
     ((RET_0)(NO_ARGS))((RET_TOP)(NO_ARGS))((ADD)(AB_CD_EF))((SUB)(AB_CD_EF))(  \
         (MUL)(AB_CD_EF))((DIV)(AB_CD_EF))((EQ)(AB_CD_EF))((LE)(AB_CD_EF))(     \
         (GE)(AB_CD_EF))((NE)(AB_CD_EF))((LESS)(AB_CD_EF))((GREATE)(AB_CD_EF))( \
-        (CONST)(NO_ARGS))((LOAD_NIL)(NO_ARGS))((PUSH)(NO_ARGS))(               \
-        (SET)(NO_ARGS))((NEW_TABLE)(NO_ARGS))((TABLE_GET)(NO_ARGS))(           \
-        (TABLE_SET)(NO_ARGS))((POP_TO)(NO_ARGS))((LEN)(NO_ARGS))(              \
-        (NEG)(NO_ARGS))((CALL)(NO_ARGS))((NEW_NF_FUNC)(NO_ARGS))(              \
-        (GET_UP_VALUE)(NO_ARGS))((SET_UP_VALUE)(NO_ARGS))(                     \
-        (CLOSE_UV_TO)(NO_ARGS))((JUMP)(NO_ARGS))((JUMP_IF_FALSE)(NO_ARGS))
+        (CONST)(AB_CD))((LOAD_NIL)(NO_ARGS))((PUSH)(NO_ARGS))((SET)(NO_ARGS))( \
+        (NEW_TABLE)(NO_ARGS))((TABLE_GET)(NO_ARGS))((TABLE_SET)(NO_ARGS))(     \
+        (POP_TO)(NO_ARGS))((LEN)(NO_ARGS))((NEG)(NO_ARGS))((CALL)(NO_ARGS))(   \
+        (NEW_NF_FUNC)(NO_ARGS))((GET_UP_VALUE)(NO_ARGS))(                      \
+        (SET_UP_VALUE)(NO_ARGS))((CLOSE_UV_TO)(NO_ARGS))((JUMP)(NO_ARGS))(     \
+        (JUMP_IF_FALSE)(NO_ARGS))
 
 #define VISIT_ALL_INS(visitor)                                                 \
     visitor(visitor, RET_0, "RET_0", NO_ARGS)                                  \
@@ -81,6 +82,15 @@ template <uint16_t OPCODE>
 class InsBuilder<OPCODE, (uint16_t)(InsType::NO_ARGS)> {
 public:
     static Instruction build() { return INS_FROM_OP_NO_ARGS(OPCODE); }
+};
+
+template <uint16_t OPCODE>
+class InsBuilder<OPCODE, (uint16_t)(InsType::AB_CD)> {
+public:
+    static Instruction build(uint16_t ab, uint16_t cd)
+    {
+        return INS_FROM_OP_AB_CD(OPCODE, ab, cd);
+    }
 };
 
 template <uint16_t OPCODE>

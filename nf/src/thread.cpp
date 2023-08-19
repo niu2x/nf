@@ -416,8 +416,10 @@ static int __Thread_run(Thread* self)
 
             case Opcode::CONST: {
                 auto const_index = (StackIndex)INS_AB(ins);
-                auto* tv = &(self->func->proto->const_arr[const_index]);
-                Thread_push(self, tv);
+                StackIndex result_slot = INS_CD(ins);
+                FIX_TOP(self, result_slot);
+                *stack_slot(self, result_slot)
+                    = self->func->proto->const_arr[const_index];
                 break;
             }
 

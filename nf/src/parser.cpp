@@ -400,7 +400,7 @@ static InsIndex emit_pop_to(FuncState* fs, StackIndex new_top)
 static void emit_const(FuncState* fs, TValue* c)
 {
     auto const_index = Proto_insert_const(fs->ls->th, fs->proto, c);
-    emit(fs, INS_FROM_OP_AB(Opcode::CONST, const_index), 1);
+    emit(fs, INS_BUILD(CONST, const_index, fs->proto->used_slots), 1);
 }
 
 static SingleValue const_value(FuncState* fs)
