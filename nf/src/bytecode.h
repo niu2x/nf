@@ -18,7 +18,7 @@ enum class InsType : uint16_t {
         (MUL)(AB_CD_EF))((DIV)(AB_CD_EF))((EQ)(AB_CD_EF))((LE)(AB_CD_EF))(     \
         (GE)(AB_CD_EF))((NE)(AB_CD_EF))((LESS)(AB_CD_EF))((GREATE)(AB_CD_EF))( \
         (CONST)(AB_CD))((LOAD_NIL)(AB))((PUSH)(AB_CD))((SET)(AB_CD))(          \
-        (NEW_TABLE)(AB))((TABLE_GET)(NO_ARGS))((TABLE_SET)(NO_ARGS))(          \
+        (NEW_TABLE)(AB))((TABLE_GET)(AB_CD_EF))((TABLE_SET)(NO_ARGS))(         \
         (POP_TO)(NO_ARGS))((LEN)(NO_ARGS))((NEG)(NO_ARGS))((CALL)(NO_ARGS))(   \
         (NEW_NF_FUNC)(NO_ARGS))((GET_UP_VALUE)(NO_ARGS))(                      \
         (SET_UP_VALUE)(NO_ARGS))((CLOSE_UV_TO)(NO_ARGS))((JUMP)(NO_ARGS))(     \

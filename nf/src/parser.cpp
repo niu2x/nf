@@ -454,9 +454,11 @@ static SingleValue ensure_normal_value(FuncState* fs, SingleValue value)
     if (value.type == SingleValueType::NORMAL) {
         return value;
     } else if (value.type == SingleValueType::TABLE_SLOT) {
-        emit(fs,
-             INS_FROM_OP_AB_CD(Opcode::TABLE_GET, value.index, value.extras[0]),
-             1);
+        emit(
+            fs,
+            INS_BUILD(
+                TABLE_GET, value.index, value.extras[0], fs->proto->used_slots),
+            1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     } else if (value.type == SingleValueType::UP_VALUE) {
         emit(fs, INS_FROM_OP_AB(Opcode::GET_UP_VALUE, value.uv_index), 1);

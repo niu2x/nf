@@ -596,6 +596,24 @@ static int __Thread_run(Thread* self)
                 break;
             }
 
+            case Opcode::TABLE_GET: {
+                StackIndex result_slot = INS_EF(ins);
+                FIX_TOP(self, result_slot);
+
+                auto slot = (StackIndex)INS_AB(ins);
+                auto table = tv2table(stack_slot(self, slot));
+
+                auto key_slot = (StackIndex)INS_CD(ins);
+                auto key = stack_slot(self, key_slot);
+                auto value = Table_get(self, table, key);
+
+                if (value)
+                    *stack_slot(self, result_slot) = *value;
+                else
+                    stack_slot(self, result_slot)->type = Type::NIL;
+                break;
+            }
+
             case Opcode::TABLE_SET: {
                 TValue* value = self->top - 1;
                 auto table_slot = (StackIndex)INS_AB(ins);
@@ -604,23 +622,6 @@ static int __Thread_run(Thread* self)
                 auto table = tv2table(stack_slot(self, table_slot));
                 *Table_set(self, table, key) = *value;
                 self->top -= 1;
-                break;
-            }
-
-            case Opcode::TABLE_GET: {
-                auto slot = (StackIndex)INS_AB(ins);
-                auto table = tv2table(stack_slot(self, slot));
-
-                auto key_slot = (StackIndex)INS_CD(ins);
-                auto key = stack_slot(self, key_slot);
-                auto value = Table_get(self, table, key);
-
-                Thread_push_nil(self);
-
-                if (value)
-                    *(self->top - 1) = *value;
-                else
-                    (self->top - 1)->type = Type::NIL;
                 break;
             }
 
