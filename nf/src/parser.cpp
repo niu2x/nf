@@ -433,7 +433,7 @@ static SingleValue table_value(FuncState* fs)
 {
     next(fs->ls);
     expect(fs->ls, ']');
-    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::NEW_TABLE), 1);
+    emit(fs, INS_BUILD(NEW_TABLE, fs->proto->used_slots), 1);
     return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
 }
 
@@ -443,7 +443,7 @@ static SingleValue ensure_at_top(FuncState* fs, SingleValue value)
         "must be normal value");
 
     if (value.index != MAX_USED_SLOT(fs)) {
-        emit(fs, INS_FROM_OP_AB(Opcode::PUSH, value.index), 1);
+        emit(fs, INS_BUILD(PUSH, value.index, fs->proto->used_slots), 1);
         value.index = MAX_USED_SLOT(fs);
     }
     return value;
@@ -596,8 +596,7 @@ static void assignemnt(FuncState* fs,
     second = ensure_normal_value(fs, second);
 
     if (left_value->type == SingleValueType::NORMAL) {
-        auto ins = INS_FROM_OP_AB_CD(
-            Opcode::SET, left_value->index, second.index);
+        auto ins = INS_BUILD(SET, left_value->index, second.index);
         emit(fs, ins, 0);
 
     } else if (left_value->type == SingleValueType::TABLE_SLOT) {
@@ -778,7 +777,7 @@ static SingleValue call_or_table_access(FuncState* fs,
             first = ensure_at_top(fs, first);
 
             for (int i = 0; i < args_nr; i++) {
-                emit(fs, INS_FROM_OP_AB(Opcode::PUSH, args[i]), 1);
+                emit(fs, INS_BUILD(PUSH, args[i], fs->proto->used_slots), 1);
             }
 
             emit(fs,

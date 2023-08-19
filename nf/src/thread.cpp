@@ -574,7 +574,9 @@ static int __Thread_run(Thread* self)
 
             case Opcode::PUSH: {
                 auto slot = (StackIndex)INS_AB(ins);
-                Thread_push(self, (stack_slot(self, slot)));
+                StackIndex result_slot = INS_CD(ins);
+                FIX_TOP(self, result_slot);
+                *stack_slot(self, result_slot) = *stack_slot(self, slot);
                 break;
             }
 
@@ -586,9 +588,11 @@ static int __Thread_run(Thread* self)
             }
 
             case Opcode::NEW_TABLE: {
+                StackIndex result_slot = INS_AB(ins);
+                FIX_TOP(self, result_slot);
                 auto table = Table_new(self);
-                TValue v = { .type = Type::Table, .obj = table };
-                Thread_push(self, &v);
+                *stack_slot(self, result_slot) = { .type = Type::Table,
+                                                   .obj = table };
                 break;
             }
 
