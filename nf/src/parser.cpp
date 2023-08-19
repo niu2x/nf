@@ -573,7 +573,7 @@ static SingleValue base_elem(FuncState* fs)
         return function(fs);
     } else if (token->token == TT_NIL) {
         next(fs->ls);
-        emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
+        emit(fs, INS_BUILD(LOAD_NIL, fs->proto->used_slots), 1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     }
 
@@ -833,7 +833,7 @@ static void stmt_local(FuncState* fs)
     if ((slot = Scope_search(fs->scope, var_name, nullptr)) < 0) {
         slot = MAX_USED_SLOT(fs) + 1;
         Scope_insert(fs->scope, var_name, slot);
-        emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
+        emit(fs, INS_BUILD(LOAD_NIL, fs->proto->used_slots), 1);
     }
     next(fs->ls);
 
