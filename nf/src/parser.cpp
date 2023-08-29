@@ -461,7 +461,9 @@ static SingleValue ensure_normal_value(FuncState* fs, SingleValue value)
             1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     } else if (value.type == SingleValueType::UP_VALUE) {
-        emit(fs, INS_FROM_OP_AB(Opcode::GET_UP_VALUE, value.uv_index), 1);
+        emit(fs,
+             INS_BUILD(GET_UP_VALUE, value.uv_index, fs->proto->used_slots),
+             1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     } else {
         // never reach

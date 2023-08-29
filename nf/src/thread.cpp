@@ -691,12 +691,16 @@ static int __Thread_run(Thread* self)
                 auto uv_index = (StackIndex)INS_AB(ins);
                 auto uv = self->func->up_values[uv_index];
 
+                auto result_slot = (StackIndex)INS_CD(ins);
+                auto result = stack_slot(self, result_slot);
+                FIX_TOP(self, result_slot);
+
                 if (uv->closed) {
-                    Thread_push(self, &(uv->value));
+                    *result = uv->value;
                 } else {
                     auto abs_stack_index
                         = self->func->up_values[uv_index]->abs_stack_index;
-                    Thread_push(self, abs_stack_index + self->stack);
+                    *result = self->stack[abs_stack_index];
                 }
                 break;
             }
