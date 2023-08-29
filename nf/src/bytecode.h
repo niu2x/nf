@@ -20,7 +20,7 @@ enum class InsType : uint16_t {
         (CONST)(AB_CD))((LOAD_NIL)(AB))((PUSH)(AB_CD))((SET)(AB_CD))(          \
         (NEW_TABLE)(AB))((TABLE_GET)(AB_CD_EF))((TABLE_SET)(AB_CD))(           \
         (LEN)(AB_CD))((NEG)(AB_CD))((NEW_NF_FUNC)(AB))((GET_UP_VALUE)(AB_CD))( \
-        (SET_UP_VALUE)(NO_ARGS))((CLOSE_UV_TO)(NO_ARGS))((JUMP)(NO_ARGS))(     \
+        (SET_UP_VALUE)(AB_CD))((CLOSE_UV_TO)(NO_ARGS))((JUMP)(NO_ARGS))(       \
         (JUMP_IF_FALSE)(NO_ARGS))((POP_TO)(NO_ARGS))((CALL)(NO_ARGS))
 
 #define VISIT_ALL_INS(visitor)                                                 \

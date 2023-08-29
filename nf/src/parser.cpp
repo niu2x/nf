@@ -610,8 +610,7 @@ static void assignemnt(FuncState* fs,
             TABLE_SET, left_value->index, left_value->extras[0]);
         emit(fs, ins, -1);
     } else if (left_value->type == SingleValueType::UP_VALUE) {
-        auto ins = INS_FROM_OP_AB_CD(
-            Opcode::SET_UP_VALUE, left_value->uv_index, second.index);
+        auto ins = INS_BUILD(SET_UP_VALUE, left_value->uv_index, second.index);
         emit(fs, ins, 0);
     }
 }
