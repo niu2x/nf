@@ -653,18 +653,22 @@ static int __Thread_run(Thread* self)
                 break;
             }
             case Opcode::LEN: {
-                auto v = (StackIndex)INS_AB(ins) + self->base;
-                TValue result = { .type = Type::Integer, .i = 0 };
+                auto v_slot = (StackIndex)INS_AB(ins);
+                auto result_slot = (StackIndex)INS_CD(ins);
+                auto v = stack_slot(self, v_slot);
+                auto result = stack_slot(self, result_slot);
+                FIX_TOP(self, result_slot);
+
+                *result = { .type = Type::Integer, .i = 0 };
                 switch (v->type) {
                     case Type::String: {
-                        result.i = tv2str(v)->nr;
+                        result->i = tv2str(v)->nr;
                         break;
                     }
                     default: {
                         Thread_throw(self, E::OP_NUM, "unsupport neg");
                     }
                 }
-                Thread_push(self, &result);
                 break;
             }
             case Opcode::CALL: {

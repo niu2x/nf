@@ -727,7 +727,9 @@ static SingleValue uni_op(FuncState* fs, const OperationRule* rule)
                     break;
                 }
                 case '#': {
-                    emit(fs, INS_FROM_OP_AB(Opcode::LEN, first.index), 1);
+                    emit(fs,
+                         INS_BUILD(LEN, first.index, fs->proto->used_slots),
+                         1);
                     first = SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
                     break;
                 }
