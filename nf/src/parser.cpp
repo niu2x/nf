@@ -497,7 +497,7 @@ static SingleValue lookup_var(FuncState* fs, Token* token)
 
 static void clear_scope_slots(FuncState* fs)
 {
-    emit(fs, INS_FROM_OP_AB(Opcode::CLOSE_UV_TO, fs->proto->used_slots), 0);
+    emit(fs, INS_BUILD(CLOSE_UV_TO, fs->proto->used_slots), 0);
     emit_pop_to(fs, fs->proto->used_slots);
 }
 static void block(FuncState* fs)
