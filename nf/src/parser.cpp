@@ -1,17 +1,11 @@
 #include <stdio.h>
 #include <ctype.h>
+#include <cmath>
 
 #include "api.h"
 #include "zio.h"
 #include "bytecode.h"
 #include "object.h"
-
-// static const char* opcode_names[] = {
-//     "TEST", "RET_0",     "RET_TOP",   "ADD",         "SUB",
-//     "MUL",  "DIV",       "CONST",     "LOAD_NIL",    "PUSH",
-//     "SET",  "NEW_TABLE", "TABLE_SET", "TABLE_GET",   "POP",
-//     "LEN",  "NEG",       "CALL",      "NEW_NF_FUNC",
-// };
 
 // #define printf(...)
 
@@ -393,21 +387,26 @@ static InsIndex emit(FuncState* fs, Instruction ins, int slots_changed)
 {
     auto ii = Proto_append_ins(fs->ls->th, fs->proto, ins);
     fs->proto->used_slots += slots_changed;
+    fs->proto->max_used_slots = std::max(fs->proto->max_used_slots,
+                                         fs->proto->used_slots);
     return ii;
 }
 
-static InsIndex emit_pop_to(FuncState* fs, StackIndex new_top)
+static void emit_pop_to(FuncState* fs, StackIndex new_top)
 {
-    auto ins = INS_FROM_OP_AB(Opcode::POP_TO, new_top);
-    auto ii = emit(fs, ins, 0);
+    // auto ins = INS_FROM_OP_AB(Opcode::POP_TO, new_top);
+    // auto ii = emit(fs, ins, 0);
     fs->proto->used_slots = new_top;
-    return ii;
+    fs->proto->max_used_slots = std::max(fs->proto->max_used_slots,
+                                         fs->proto->used_slots);
+
+    // return ii;
 }
 
 static void emit_const(FuncState* fs, TValue* c)
 {
     auto const_index = Proto_insert_const(fs->ls->th, fs->proto, c);
-    emit(fs, INS_FROM_OP_AB(Opcode::CONST, const_index), 1);
+    emit(fs, INS_BUILD(CONST, const_index, fs->proto->used_slots), 1);
 }
 
 static SingleValue const_value(FuncState* fs)
@@ -440,7 +439,7 @@ static SingleValue table_value(FuncState* fs)
 {
     next(fs->ls);
     expect(fs->ls, ']');
-    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::NEW_TABLE), 1);
+    emit(fs, INS_BUILD(NEW_TABLE, fs->proto->used_slots), 1);
     return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
 }
 
@@ -450,7 +449,7 @@ static SingleValue ensure_at_top(FuncState* fs, SingleValue value)
         "must be normal value");
 
     if (value.index != MAX_USED_SLOT(fs)) {
-        emit(fs, INS_FROM_OP_AB(Opcode::PUSH, value.index), 1);
+        emit(fs, INS_BUILD(PUSH, value.index, fs->proto->used_slots), 1);
         value.index = MAX_USED_SLOT(fs);
     }
     return value;
@@ -461,12 +460,16 @@ static SingleValue ensure_normal_value(FuncState* fs, SingleValue value)
     if (value.type == SingleValueType::NORMAL) {
         return value;
     } else if (value.type == SingleValueType::TABLE_SLOT) {
-        emit(fs,
-             INS_FROM_OP_AB_CD(Opcode::TABLE_GET, value.index, value.extras[0]),
-             1);
+        emit(
+            fs,
+            INS_BUILD(
+                TABLE_GET, value.index, value.extras[0], fs->proto->used_slots),
+            1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     } else if (value.type == SingleValueType::UP_VALUE) {
-        emit(fs, INS_FROM_OP_AB(Opcode::GET_UP_VALUE, value.uv_index), 1);
+        emit(fs,
+             INS_BUILD(GET_UP_VALUE, value.uv_index, fs->proto->used_slots),
+             1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     } else {
         // never reach
@@ -500,7 +503,7 @@ static SingleValue lookup_var(FuncState* fs, Token* token)
 
 static void clear_scope_slots(FuncState* fs)
 {
-    emit(fs, INS_FROM_OP_AB(Opcode::CLOSE_UV_TO, fs->proto->used_slots), 0);
+    emit(fs, INS_BUILD(CLOSE_UV_TO, fs->proto->used_slots), 0);
     emit_pop_to(fs, fs->proto->used_slots);
 }
 static void block(FuncState* fs)
@@ -556,7 +559,8 @@ static SingleValue function(FuncState* parent_fs)
 
     TValue tv_proto = { .type = Type::Proto, .obj = fs.proto };
     emit_const(parent_fs, &tv_proto);
-    emit(parent_fs, INS_FROM_OP_NO_ARGS(Opcode::NEW_NF_FUNC), 0);
+    emit(
+        parent_fs, INS_BUILD(NEW_NF_FUNC, parent_fs->proto->used_slots - 1), 0);
     return SINGLE_NORMAL_VALUE_AT_TOP(parent_fs, false);
 }
 
@@ -580,7 +584,7 @@ static SingleValue base_elem(FuncState* fs)
         return function(fs);
     } else if (token->token == TT_NIL) {
         next(fs->ls);
-        emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
+        emit(fs, INS_BUILD(LOAD_NIL, fs->proto->used_slots), 1);
         return SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
     }
 
@@ -603,18 +607,16 @@ static void assignemnt(FuncState* fs,
     second = ensure_normal_value(fs, second);
 
     if (left_value->type == SingleValueType::NORMAL) {
-        auto ins = INS_FROM_OP_AB_CD(
-            Opcode::SET, left_value->index, second.index);
+        auto ins = INS_BUILD(SET, left_value->index, second.index);
         emit(fs, ins, 0);
 
     } else if (left_value->type == SingleValueType::TABLE_SLOT) {
-        second = ensure_at_top(fs, second);
-        auto ins = INS_FROM_OP_AB_CD(
-            Opcode::TABLE_SET, left_value->index, left_value->extras[0]);
+        // second = ensure_at_top(fs, second);
+        auto ins = INS_BUILD(
+            TABLE_SET, left_value->index, left_value->extras[0], second.index);
         emit(fs, ins, -1);
     } else if (left_value->type == SingleValueType::UP_VALUE) {
-        auto ins = INS_FROM_OP_AB_CD(
-            Opcode::SET_UP_VALUE, left_value->uv_index, second.index);
+        auto ins = INS_BUILD(SET_UP_VALUE, left_value->uv_index, second.index);
         emit(fs, ins, 0);
     }
 }
@@ -636,51 +638,53 @@ static SingleValue bin_op(FuncState* fs, const OperationRule* operations)
     first = ensure_normal_value(fs, first);                                    \
     auto second = expr(fs, operations + 1);                                    \
     second = ensure_normal_value(fs, second);                                  \
-    emit(fs, INS_FROM_OP_AB_CD((opcode), first.index, second.index), 1);       \
+    emit(fs,                                                                   \
+         INS_BUILD(opcode, first.index, second.index, fs->proto->used_slots),  \
+         1);                                                                   \
     first = SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
 
                     case '+': {
-                        SIMPLE_BIN_OP(Opcode::ADD);
+                        SIMPLE_BIN_OP(ADD);
                         break;
                     }
                     case '-': {
-                        SIMPLE_BIN_OP(Opcode::SUB);
+                        SIMPLE_BIN_OP(SUB);
                         break;
                     }
                     case '/': {
-                        SIMPLE_BIN_OP(Opcode::DIV);
+                        SIMPLE_BIN_OP(DIV);
 
                         break;
                     }
                     case '*': {
-                        SIMPLE_BIN_OP(Opcode::MUL);
+                        SIMPLE_BIN_OP(MUL);
                         break;
                     }
 
                     case '<': {
-                        SIMPLE_BIN_OP(Opcode::LESS);
+                        SIMPLE_BIN_OP(LESS);
                         break;
                     }
                     case '>': {
-                        SIMPLE_BIN_OP(Opcode::GREATE);
+                        SIMPLE_BIN_OP(GREATE);
                         break;
                     }
 
                     case TT_LE: {
-                        SIMPLE_BIN_OP(Opcode::LE);
+                        SIMPLE_BIN_OP(LE);
                         break;
                     }
                     case TT_GE: {
-                        SIMPLE_BIN_OP(Opcode::GE);
+                        SIMPLE_BIN_OP(GE);
                         break;
                     }
 
                     case TT_EQ: {
-                        SIMPLE_BIN_OP(Opcode::EQ);
+                        SIMPLE_BIN_OP(EQ);
                         break;
                     }
                     case TT_NE: {
-                        SIMPLE_BIN_OP(Opcode::NE);
+                        SIMPLE_BIN_OP(NE);
                         break;
                     }
 #undef SIMPLE_BIN_OP
@@ -725,13 +729,17 @@ static SingleValue uni_op(FuncState* fs, const OperationRule* rule)
 
             switch (target_op) {
                 case '-': {
-                    emit(fs, INS_FROM_OP_AB(Opcode::NEG, first.index), 1);
+                    emit(fs,
+                         INS_BUILD(NEG, first.index, fs->proto->used_slots),
+                         1);
                     first = SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
 
                     break;
                 }
                 case '#': {
-                    emit(fs, INS_FROM_OP_AB(Opcode::LEN, first.index), 1);
+                    emit(fs,
+                         INS_BUILD(LEN, first.index, fs->proto->used_slots),
+                         1);
                     first = SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
                     break;
                 }
@@ -783,12 +791,13 @@ static SingleValue call_or_table_access(FuncState* fs,
             first = ensure_at_top(fs, first);
 
             for (int i = 0; i < args_nr; i++) {
-                emit(fs, INS_FROM_OP_AB(Opcode::PUSH, args[i]), 1);
+                emit(fs, INS_BUILD(PUSH, args[i], fs->proto->used_slots), 1);
             }
 
+            int desired_retvals = 1;
             emit(fs,
-                 INS_FROM_OP_AB_CD(Opcode::CALL, first.index, 1),
-                 -args_nr - 1 + 1);
+                 INS_BUILD(CALL, first.index, args_nr, desired_retvals),
+                 -args_nr - 1 + desired_retvals);
             first = SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
 
         } else if (token == '[') {
@@ -838,7 +847,7 @@ static void stmt_local(FuncState* fs)
     if ((slot = Scope_search(fs->scope, var_name, nullptr)) < 0) {
         slot = MAX_USED_SLOT(fs) + 1;
         Scope_insert(fs->scope, var_name, slot);
-        emit(fs, INS_FROM_OP_NO_ARGS(Opcode::LOAD_NIL), 1);
+        emit(fs, INS_BUILD(LOAD_NIL, fs->proto->used_slots), 1);
     }
     next(fs->ls);
 
@@ -848,7 +857,7 @@ static void stmt_local(FuncState* fs)
 
         auto v = expr(fs, operations_order);
         v = ensure_normal_value(fs, v);
-        auto ins = INS_FROM_OP_AB_CD(Opcode::SET, slot, v.index);
+        auto ins = INS_BUILD(SET, slot, v.index);
         emit(fs, ins, 0);
     }
 
@@ -886,7 +895,7 @@ static StmtResult stmt(FuncState* fs)
                 next(fs->ls);
                 ensure_at_top(
                     fs, ensure_normal_value(fs, expr(fs, operations_order)));
-                emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_TOP), 0);
+                emit(fs, INS_BUILD(RET_TOP), 0);
 
             } else if (token->token == '}') {
                 r.chunk_finished = true;
@@ -904,7 +913,6 @@ static StmtResult stmt(FuncState* fs)
                 auto cond = expr(fs, operations_order);
                 expect(fs->ls, ')');
                 cond = ensure_normal_value(fs, cond);
-                cond = ensure_at_top(fs, cond);
 
                 auto jump_else = emit(fs, 0, 0);
                 embed_stmt_block(fs);
@@ -915,18 +923,16 @@ static StmtResult stmt(FuncState* fs)
                 }
 
                 auto ins_nr = Proto_ins_nr(fs->proto);
-                Proto_update_ins(
-                    fs->proto,
-                    jump_else,
-                    INS_FROM_OP_ABCD(Opcode::JUMP_IF_FALSE, ins_nr));
+                Proto_update_ins(fs->proto,
+                                 jump_else,
+                                 INS_BUILD(JUMP_IF_FALSE, cond.index, ins_nr));
 
                 if (has_else) {
                     embed_stmt_block(fs);
                     ins_nr = Proto_ins_nr(fs->proto);
 
-                    Proto_update_ins(fs->proto,
-                                     jump_end,
-                                     INS_FROM_OP_ABCD(Opcode::JUMP, ins_nr));
+                    Proto_update_ins(
+                        fs->proto, jump_end, INS_BUILD(JUMP, ins_nr));
                 }
             } else if (token->token == ';') {
                 next(fs->ls);
@@ -947,15 +953,14 @@ static StmtResult stmt(FuncState* fs)
                 auto cond = expr(fs, operations_order);
                 expect(fs->ls, ')');
                 cond = ensure_normal_value(fs, cond);
-                cond = ensure_at_top(fs, cond);
                 auto jemp_end = emit(fs, 0, 0);
                 embed_stmt_block(fs);
-                emit(fs, INS_FROM_OP_ABCD(Opcode::JUMP, cond_label), 0);
+                emit(fs, INS_BUILD(JUMP, cond_label), 0);
                 auto end_label = Proto_ins_nr(fs->proto);
                 Proto_update_ins(
                     fs->proto,
                     jemp_end,
-                    INS_FROM_OP_ABCD(Opcode::JUMP_IF_FALSE, end_label));
+                    INS_BUILD(JUMP_IF_FALSE, cond.index, end_label));
                 break;
             }
 
@@ -999,6 +1004,9 @@ static void enter_scope(FuncState* fs, Scope* scope)
 static void exit_scope(FuncState* fs)
 {
     fs->proto->used_slots = fs->scope->parent_used_slots;
+    fs->proto->max_used_slots = std::max(fs->proto->max_used_slots,
+                                         fs->proto->used_slots);
+
     fs->scope = fs->scope->parent;
     fs->proto->scope = fs->scope;
 }
@@ -1033,6 +1041,8 @@ static void single_stmt_chunk(FuncState* fs)
     fs->proto->scope = fs->scope;
 
     fs->proto->used_slots = scope.parent_used_slots;
+    fs->proto->max_used_slots = std::max(fs->proto->max_used_slots,
+                                         fs->proto->used_slots);
 }
 
 static void single_stmt_block(FuncState* fs)
@@ -1044,7 +1054,7 @@ static void single_stmt_block(FuncState* fs)
 static void func_body(FuncState* fs)
 {
     chunk(fs);
-    emit(fs, INS_FROM_OP_NO_ARGS(Opcode::RET_0), 0);
+    emit(fs, INS_BUILD(RET_0), 0);
 }
 
 static Proto* y_parser(Thread* th, ZIO* z, MBuffer* buff, const char* name)

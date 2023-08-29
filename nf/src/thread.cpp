@@ -1,6 +1,7 @@
 #include <setjmp.h>
 #include <stdio.h>
 #include <string.h>
+#include <cmath>
 
 #include "object.h"
 #include "api.h"
@@ -211,38 +212,42 @@ Error Thread_load(Thread* self, const char* buff, size_t size, const char* name)
 }
 
 #define NUMBERIC_BIN_OP(_OP_)                                                  \
-    TValue result;                                                             \
     if (first->type == Type::Integer) {                                        \
         if (second->type == Type::Integer) {                                   \
-            result = { .type = Type::Integer, .i = first->i _OP_ second->i };  \
+            *stack_slot(self, result_slot) = { .type = Type::Integer,          \
+                                               .i = first->i _OP_ second->i }; \
         } else if (second->type == Type::Number) {                             \
-            result = { .type = Type::Number, .n = first->i _OP_ second->n };   \
+            *stack_slot(self, result_slot) = { .type = Type::Number,           \
+                                               .n = first->i _OP_ second->n }; \
         }                                                                      \
     } else if (first->type == Type::Number) {                                  \
         if (second->type == Type::Integer) {                                   \
-            result = { .type = Type::Number, .n = first->n _OP_ second->i };   \
+            *stack_slot(self, result_slot) = { .type = Type::Number,           \
+                                               .n = first->n _OP_ second->i }; \
         } else if (second->type == Type::Number) {                             \
-            result = { .type = Type::Number, .n = first->n _OP_ second->n };   \
+            *stack_slot(self, result_slot) = { .type = Type::Number,           \
+                                               .n = first->n _OP_ second->n }; \
         }                                                                      \
-    }                                                                          \
-    Thread_push(self, &result);
+    }
 
 #define NUMBERIC_CMP_OP(_OP_)                                                  \
-    TValue result;                                                             \
     if (first->type == Type::Integer) {                                        \
         if (second->type == Type::Integer) {                                   \
-            result = { .type = Type::Bool, .b = first->i _OP_ second->i };     \
+            *stack_slot(self, result_slot) = { .type = Type::Bool,             \
+                                               .b = first->i _OP_ second->i }; \
         } else if (second->type == Type::Number) {                             \
-            result = { .type = Type::Bool, .b = first->i _OP_ second->n };     \
+            *stack_slot(self, result_slot) = { .type = Type::Bool,             \
+                                               .b = first->i _OP_ second->n }; \
         }                                                                      \
     } else if (first->type == Type::Number) {                                  \
         if (second->type == Type::Integer) {                                   \
-            result = { .type = Type::Bool, .b = first->n _OP_ second->i };     \
+            *stack_slot(self, result_slot) = { .type = Type::Bool,             \
+                                               .b = first->n _OP_ second->i }; \
         } else if (second->type == Type::Number) {                             \
-            result = { .type = Type::Bool, .b = first->n _OP_ second->n };     \
+            *stack_slot(self, result_slot) = { .type = Type::Bool,             \
+                                               .b = first->n _OP_ second->n }; \
         }                                                                      \
-    }                                                                          \
-    Thread_push(self, &result);
+    }
 
 static void __Thread_close_uv_to(Thread* self, StackIndex new_top)
 {
@@ -285,38 +290,74 @@ static void __Thread_return(Thread* self,
     self->base = Thread_pop_index(self) + self->stack;
     self->pc = Thread_pop_pc(self);
     self->func = self->func->prev;
-    self->top = self->base + normalize_stack_index(self, called_func);
+    // self->top = self->base + normalize_stack_index(self, called_func);
 
-    for (int i = 0; i < retn; i++)
-        self->top[i] = return_value_base[i];
+    for (int i = 0; i < std::min(retn, desire_retvals_nr); i++)
+        self->base[called_func + i] = return_value_base[i];
     self->retvals_nr = retn;
-    self->top += retn;
+    // self->top += retn;
 
     if (retn < desire_retvals_nr) {
         for (auto i = retn; i < desire_retvals_nr; i++) {
-            Thread_push_nil(self);
+            self->base[called_func + i] = nil;
         }
-    } else
-        self->top -= (retn - desire_retvals_nr);
+    } else {
+        // self->top -= (retn - desire_retvals_nr);
+    }
 
     __Thread_close_uv(self, 0);
 }
 
 static void Thread_call(Thread* self,
                         StackIndex func_i,
+                        StackIndex args_nr,
                         StackIndex desire_retvals_nr);
+
+#define FIX_TOP(th, result_slot)
 
 static int __Thread_run(Thread* self)
 {
     while (self->pc) {
         Instruction ins = *(self->pc++);
         if (self->debug) {
-            printf("run(%ld, %ld) %s %d %d \n",
+            printf("run(%ld, %ld) %s",
                    self->top - self->base,
                    self->top - self->stack,
-                   opcode_names[(int)(INS_OP(ins))],
-                   (int)(INS_AB(ins)),
-                   (int)(INS_CD(ins)));
+                   // self->stack, self->base, self->top,
+                   opcode_names[(int)(INS_OP(ins))]);
+
+            switch (INS_TYPE(ins)) {
+                case InsType::NO_ARGS: {
+                    break;
+                }
+                case InsType::AB: {
+                    printf(" %d", (int32_t)INS_AB(ins));
+                    break;
+                }
+                case InsType::AB_CD: {
+                    printf(
+                        " %d %d", (int32_t)INS_AB(ins), (int32_t)INS_CD(ins));
+                    break;
+                }
+                case InsType::ABCD: {
+                    printf(" %d", (int32_t)INS_ABCD(ins));
+                    break;
+                }
+                case InsType::AB_CDEF: {
+                    printf(
+                        " %d %d", (int32_t)INS_AB(ins), (int32_t)INS_CDEF(ins));
+                    break;
+                }
+                case InsType::AB_CD_EF: {
+                    printf(" %d %d %d",
+                           (int32_t)INS_AB(ins),
+                           (int32_t)INS_CD(ins),
+                           (int32_t)INS_EF(ins));
+                    break;
+                }
+            }
+
+            printf("\n");
         }
 
         switch (INS_OP(ins)) {
@@ -331,6 +372,8 @@ static int __Thread_run(Thread* self)
             case Opcode::ADD: {
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
+                StackIndex result_slot = INS_EF(ins);
+                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -341,11 +384,10 @@ static int __Thread_run(Thread* self)
                 else if (is_str(first) && is_str(second)) {
                     auto concat = Str_concat(
                         self, tv2str(first), tv2str(second));
-                    TValue result = {
+                    *(stack_slot(self, result_slot)) = {
                         .type = Type::String,
                         .obj = concat,
                     };
-                    Thread_push(self, &result);
                 } else {
                     Thread_throw(self, E::OP_NUM);
                 }
@@ -353,8 +395,11 @@ static int __Thread_run(Thread* self)
             }
 
             case Opcode::SUB: {
+                StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
+
+                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -367,8 +412,11 @@ static int __Thread_run(Thread* self)
             }
 
             case Opcode::MUL: {
+                StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
+
+                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -381,8 +429,11 @@ static int __Thread_run(Thread* self)
             }
 
             case Opcode::DIV: {
+                StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
+
+                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -394,22 +445,169 @@ static int __Thread_run(Thread* self)
                 break;
             }
 
+            case Opcode::EQ: {
+                StackIndex result_slot = INS_EF(ins);
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                FIX_TOP(self, result_slot);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(==);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = Str_equal(tv2str(first), tv2str(second));
+                    *stack_slot(self, result_slot) = {
+                        .type = Type::Bool,
+                        .b = x,
+                    };
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                break;
+            }
+
+            case Opcode::LE: {
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex result_slot = INS_EF(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                FIX_TOP(self, result_slot);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(<=);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = Str_cmp(tv2str(first), tv2str(second));
+                    *stack_slot(self, result_slot) = {
+                        .type = Type::Bool,
+                        .b = x <= 0,
+                    };
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                break;
+            }
+
+            case Opcode::GE: {
+                StackIndex result_slot = INS_EF(ins);
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                FIX_TOP(self, result_slot);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(>=);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = Str_cmp(tv2str(first), tv2str(second));
+                    *stack_slot(self, result_slot) = {
+                        .type = Type::Bool,
+                        .b = x >= 0,
+                    };
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                break;
+            }
+
+            case Opcode::NE: {
+                StackIndex result_slot = INS_EF(ins);
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+
+                FIX_TOP(self, result_slot);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(!=);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = !Str_equal(tv2str(first), tv2str(second));
+                    *stack_slot(self, result_slot) = {
+                        .type = Type::Bool,
+                        .b = x,
+                    };
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                break;
+            }
+
+            case Opcode::LESS: {
+                StackIndex result_slot = INS_EF(ins);
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+                FIX_TOP(self, result_slot);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(<);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = Str_cmp(tv2str(first), tv2str(second));
+                    *stack_slot(self, result_slot) = {
+                        .type = Type::Bool,
+                        .b = x == -1,
+                    };
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                break;
+            }
+
+            case Opcode::GREATE: {
+                StackIndex result_slot = INS_EF(ins);
+                StackIndex first_slot = INS_AB(ins);
+                StackIndex second_slot = INS_CD(ins);
+                FIX_TOP(self, result_slot);
+
+                TValue* first = stack_slot(self, first_slot);
+                TValue* second = stack_slot(self, second_slot);
+                if (is_numberic(first) && is_numberic(second)) {
+                    NUMBERIC_CMP_OP(>);
+                } else if (is_str(first) && is_str(second)) {
+                    auto x = Str_cmp(tv2str(first), tv2str(second));
+                    *stack_slot(self, result_slot) = {
+                        .type = Type::Bool,
+                        .b = x == 1,
+                    };
+                } else {
+                    Thread_throw(self, E::OP_NUM);
+                }
+
+                break;
+            }
+
             case Opcode::CONST: {
                 auto const_index = (StackIndex)INS_AB(ins);
-                auto* tv = &(self->func->proto->const_arr[const_index]);
-                Thread_push(self, tv);
+                StackIndex result_slot = INS_CD(ins);
+                FIX_TOP(self, result_slot);
+                *stack_slot(self, result_slot)
+                    = self->func->proto->const_arr[const_index];
                 break;
             }
 
             case Opcode::LOAD_NIL: {
-                TValue tv = { .type = Type::NIL, .n = 0 };
-                Thread_push(self, &tv);
+                StackIndex result_slot = INS_AB(ins);
+                FIX_TOP(self, result_slot);
+                *stack_slot(self, result_slot) = { .type = Type::NIL, .n = 0 };
                 break;
             }
 
             case Opcode::PUSH: {
                 auto slot = (StackIndex)INS_AB(ins);
-                Thread_push(self, (stack_slot(self, slot)));
+                StackIndex result_slot = INS_CD(ins);
+                FIX_TOP(self, result_slot);
+                *stack_slot(self, result_slot) = *stack_slot(self, slot);
                 break;
             }
 
@@ -421,24 +619,18 @@ static int __Thread_run(Thread* self)
             }
 
             case Opcode::NEW_TABLE: {
+                StackIndex result_slot = INS_AB(ins);
+                FIX_TOP(self, result_slot);
                 auto table = Table_new(self);
-                TValue v = { .type = Type::Table, .obj = table };
-                Thread_push(self, &v);
-                break;
-            }
-
-            case Opcode::TABLE_SET: {
-                TValue* value = self->top - 1;
-                auto table_slot = (StackIndex)INS_AB(ins);
-                auto key_slot = (StackIndex)INS_CD(ins);
-                auto key = stack_slot(self, key_slot);
-                auto table = tv2table(stack_slot(self, table_slot));
-                *Table_set(self, table, key) = *value;
-                self->top -= 1;
+                *stack_slot(self, result_slot) = { .type = Type::Table,
+                                                   .obj = table };
                 break;
             }
 
             case Opcode::TABLE_GET: {
+                StackIndex result_slot = INS_EF(ins);
+                FIX_TOP(self, result_slot);
+
                 auto slot = (StackIndex)INS_AB(ins);
                 auto table = tv2table(stack_slot(self, slot));
 
@@ -446,80 +638,100 @@ static int __Thread_run(Thread* self)
                 auto key = stack_slot(self, key_slot);
                 auto value = Table_get(self, table, key);
 
-                Thread_push_nil(self);
-
                 if (value)
-                    *(self->top - 1) = *value;
+                    *stack_slot(self, result_slot) = *value;
                 else
-                    (self->top - 1)->type = Type::NIL;
+                    stack_slot(self, result_slot)->type = Type::NIL;
                 break;
             }
 
-            case Opcode::POP_TO: {
+            case Opcode::TABLE_SET: {
+                auto table_slot = (StackIndex)INS_AB(ins);
+                auto key_slot = (StackIndex)INS_CD(ins);
+                auto v_slot = (StackIndex)INS_EF(ins);
+                auto key = stack_slot(self, key_slot);
+                auto table = tv2table(stack_slot(self, table_slot));
+                *Table_set(self, table, key) = *stack_slot(self, v_slot);
+                break;
+            }
 
-                auto new_top = (StackIndex)INS_AB(ins);
-                self->top = new_top + self->base;
+            case Opcode::LEN: {
+                auto v_slot = (StackIndex)INS_AB(ins);
+                auto result_slot = (StackIndex)INS_CD(ins);
+                auto v = stack_slot(self, v_slot);
+                auto result = stack_slot(self, result_slot);
+                FIX_TOP(self, result_slot);
 
+                *result = { .type = Type::Integer, .i = 0 };
+                switch (v->type) {
+                    case Type::String: {
+                        result->i = tv2str(v)->nr;
+                        break;
+                    }
+                    default: {
+                        Thread_throw(self, E::OP_NUM, "unsupport neg");
+                    }
+                }
                 break;
             }
 
             case Opcode::NEG: {
-                auto v = (StackIndex)INS_AB(ins) + self->base;
-                TValue result = *v;
+
+                auto v_slot = (StackIndex)INS_AB(ins);
+                auto result_slot = (StackIndex)INS_CD(ins);
+                auto v = stack_slot(self, v_slot);
+                auto result = stack_slot(self, result_slot);
+                FIX_TOP(self, result_slot);
+
+                *result = *v;
                 switch (v->type) {
                     case Type::Integer: {
-                        result.i = -v->i;
+                        result->i = -v->i;
                         break;
                     }
                     case Type::Number: {
-                        result.n = -v->n;
+                        result->n = -v->n;
                         break;
                     }
                     default: {
                         Thread_throw(self, E::OP_NUM, "unsupport neg");
                     }
                 }
-                Thread_push(self, &result);
                 break;
             }
-            case Opcode::LEN: {
-                auto v = (StackIndex)INS_AB(ins) + self->base;
-                TValue result = { .type = Type::Integer, .i = 0 };
-                switch (v->type) {
-                    case Type::String: {
-                        result.i = tv2str(v)->nr;
-                        break;
-                    }
-                    default: {
-                        Thread_throw(self, E::OP_NUM, "unsupport neg");
-                    }
-                }
-                Thread_push(self, &result);
-                break;
-            }
+
             case Opcode::CALL: {
                 auto slot = (StackIndex)INS_AB(ins);
-                auto desire_retvals_nr = (StackIndex)INS_CD(ins);
-                Thread_call(self, slot, desire_retvals_nr);
+                auto args_nr = (StackIndex)INS_CD(ins);
+                auto desire_retvals_nr = (StackIndex)INS_EF(ins);
+                Thread_call(self, slot, args_nr, desire_retvals_nr);
                 break;
             }
             case Opcode::NEW_NF_FUNC: {
-                auto proto = tv2proto(self->top - 1);
+                auto slot = (StackIndex)INS_AB(ins);
+                auto tv = stack_slot(self, slot);
+                auto proto = tv2proto(tv);
                 auto func = Func_new(self, proto);
-                self->top--;
-                Thread_push_func(self, func);
+                *tv = {
+                    .type = Type::Func,
+                    .obj = func,
+                };
                 break;
             }
             case Opcode::GET_UP_VALUE: {
                 auto uv_index = (StackIndex)INS_AB(ins);
                 auto uv = self->func->up_values[uv_index];
 
+                auto result_slot = (StackIndex)INS_CD(ins);
+                auto result = stack_slot(self, result_slot);
+                FIX_TOP(self, result_slot);
+
                 if (uv->closed) {
-                    Thread_push(self, &(uv->value));
+                    *result = uv->value;
                 } else {
                     auto abs_stack_index
                         = self->func->up_values[uv_index]->abs_stack_index;
-                    Thread_push(self, abs_stack_index + self->stack);
+                    *result = self->stack[abs_stack_index];
                 }
                 break;
             }
@@ -554,120 +766,20 @@ static int __Thread_run(Thread* self)
             }
 
             case Opcode::JUMP_IF_FALSE: {
-                auto cond = self->top - 1;
+                auto cond = stack_slot(self, (StackIndex)INS_AB(ins));
                 if (cond->type == Type::NIL
                     || (cond->type == Type::Bool && cond->b == false)) {
-                    InsIndex target = (InsIndex)INS_ABCD(ins);
+                    InsIndex target = (InsIndex)INS_CDEF(ins);
                     self->pc = self->func->proto->ins + target;
                 }
 
                 break;
             }
 
-            case Opcode::LESS: {
-                StackIndex first_slot = INS_AB(ins);
-                StackIndex second_slot = INS_CD(ins);
+            case Opcode::POP_TO: {
 
-                TValue* first = stack_slot(self, first_slot);
-                TValue* second = stack_slot(self, second_slot);
-                if (is_numberic(first) && is_numberic(second)) {
-                    NUMBERIC_CMP_OP(<);
-                } else if (is_str(first) && is_str(second)) {
-                    auto x = Str_cmp(tv2str(first), tv2str(second));
-                    Thread_push(self, x == -1);
-                } else {
-                    Thread_throw(self, E::OP_NUM);
-                }
-
-                break;
-            }
-
-            case Opcode::LE: {
-                StackIndex first_slot = INS_AB(ins);
-                StackIndex second_slot = INS_CD(ins);
-
-                TValue* first = stack_slot(self, first_slot);
-                TValue* second = stack_slot(self, second_slot);
-                if (is_numberic(first) && is_numberic(second)) {
-                    NUMBERIC_CMP_OP(<=);
-                } else if (is_str(first) && is_str(second)) {
-                    auto x = Str_cmp(tv2str(first), tv2str(second));
-                    Thread_push(self, x <= 0);
-                } else {
-                    Thread_throw(self, E::OP_NUM);
-                }
-
-                break;
-            }
-
-            case Opcode::GE: {
-                StackIndex first_slot = INS_AB(ins);
-                StackIndex second_slot = INS_CD(ins);
-
-                TValue* first = stack_slot(self, first_slot);
-                TValue* second = stack_slot(self, second_slot);
-                if (is_numberic(first) && is_numberic(second)) {
-                    NUMBERIC_CMP_OP(>=);
-                } else if (is_str(first) && is_str(second)) {
-                    auto x = Str_cmp(tv2str(first), tv2str(second));
-                    Thread_push(self, x >= 0);
-                } else {
-                    Thread_throw(self, E::OP_NUM);
-                }
-
-                break;
-            }
-
-            case Opcode::GREATE: {
-                StackIndex first_slot = INS_AB(ins);
-                StackIndex second_slot = INS_CD(ins);
-
-                TValue* first = stack_slot(self, first_slot);
-                TValue* second = stack_slot(self, second_slot);
-                if (is_numberic(first) && is_numberic(second)) {
-                    NUMBERIC_CMP_OP(>);
-                } else if (is_str(first) && is_str(second)) {
-                    auto x = Str_cmp(tv2str(first), tv2str(second));
-                    Thread_push(self, x == 1);
-                } else {
-                    Thread_throw(self, E::OP_NUM);
-                }
-
-                break;
-            }
-
-            case Opcode::EQ: {
-                StackIndex first_slot = INS_AB(ins);
-                StackIndex second_slot = INS_CD(ins);
-
-                TValue* first = stack_slot(self, first_slot);
-                TValue* second = stack_slot(self, second_slot);
-                if (is_numberic(first) && is_numberic(second)) {
-                    NUMBERIC_CMP_OP(==);
-                } else if (is_str(first) && is_str(second)) {
-                    auto x = Str_equal(tv2str(first), tv2str(second));
-                    Thread_push(self, x);
-                } else {
-                    Thread_throw(self, E::OP_NUM);
-                }
-
-                break;
-            }
-
-            case Opcode::NE: {
-                StackIndex first_slot = INS_AB(ins);
-                StackIndex second_slot = INS_CD(ins);
-
-                TValue* first = stack_slot(self, first_slot);
-                TValue* second = stack_slot(self, second_slot);
-                if (is_numberic(first) && is_numberic(second)) {
-                    NUMBERIC_CMP_OP(!=);
-                } else if (is_str(first) && is_str(second)) {
-                    auto x = !Str_equal(tv2str(first), tv2str(second));
-                    Thread_push(self, x);
-                } else {
-                    Thread_throw(self, E::OP_NUM);
-                }
+                auto new_top = (StackIndex)INS_AB(ins);
+                self->top = new_top + self->base;
 
                 break;
             }
@@ -686,11 +798,13 @@ static int __Thread_run(Thread* self)
 
 static void Thread_call(Thread* self,
                         StackIndex func_i,
+                        StackIndex args_nr,
                         StackIndex desire_retvals_nr)
 {
+    func_i = normalize_stack_index(self, func_i);
+
     auto tv_func = stack_slot(self, func_i);
     auto args = tv_func + 1;
-    StackIndex args_nr = self->top - args;
 
     Thread_push_pc(self, self->pc);
     Thread_push_index(self, self->base - self->stack);
@@ -708,7 +822,9 @@ static void Thread_call(Thread* self,
         desire_args_nr = func->proto->args_nr;
     }
 
-    for (int i = 0; i < args_nr; i++) {
+    // auto backup_top = self->top - self->stack;
+    // auto backup_base = self->base - self->stack;
+    for (int i = 0; i < std::min(args_nr, desire_args_nr); i++) {
         Thread_push(self, args++);
     }
 
@@ -717,8 +833,18 @@ static void Thread_call(Thread* self,
             Thread_push_nil(self);
         }
     } else {
-        self->top -= (args_nr - desire_args_nr);
+        // self->top -= (args_nr - desire_args_nr);
     }
+
+    if (func->func_type == FuncType::NF) {
+        for (StackIndex i = desire_args_nr; i < func->proto->max_used_slots;
+             i++) {
+            Thread_push_nil(self);
+        }
+    }
+
+    // self->top = self->stack + backup_top;
+    // self->base = self->stack + backup_base;
 
     StackIndex retn = 0;
 
@@ -751,7 +877,7 @@ void Thread_run(Thread* self, const char* code)
 {
     auto err = Thread_load(self, code, strlen(code), "no_name");
     if (E::OK == err) {
-        Thread_call(self, -1, 0);
+        Thread_call(self, -1, 0, 0);
     } else {
         Thread_throw(self, err);
     }
@@ -787,7 +913,7 @@ void Thread_run(Thread* self, FILE* fp)
     load.fp = fp;
     auto err = Thread_load(self, FILE_read, &load, "stdin");
     if (E::OK == err) {
-        Thread_call(self, -1, 0);
+        Thread_call(self, -1, 0, 0);
     } else {
         Thread_throw(self, err);
     }
@@ -811,9 +937,16 @@ void Thread_push(Thread* self, const TValue* tv)
 {
     NF_CHECK(self, self->stack_nr + 1 <= MAX_STACK_NR, "stack overflow");
     if (self->stack_nr <= (self->top - self->stack)) {
+
+        auto backup_top = self->top - self->stack;
+        auto backup_base = self->base - self->stack;
+
         self->stack = NF_REALLOC_ARRAY_P(
             self, self->stack, TValue, self->stack_nr * 3 / 2 + 16);
         self->stack_nr = self->stack_nr * 3 / 2 + 16;
+
+        self->top = self->stack + backup_top;
+        self->base = self->stack + backup_base;
     }
     *(self->top++) = *tv;
 }

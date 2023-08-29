@@ -33,10 +33,7 @@ using Integer = int64_t;
 using Number = double;
 // static_assert sizeof(Integer) == sizeof(Number)
 
-// using Index = int32_t;
-using VarIndex = int16_t;
-using ConstIndex = int16_t;
-
+using ConstIndex = uint16_t;
 using InsIndex = uint32_t;
 
 // 主要受限于16位的VarIndex、ConstIndex、StackIndex
