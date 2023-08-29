@@ -919,17 +919,14 @@ static StmtResult stmt(FuncState* fs)
 
                 auto ins_nr = Proto_ins_nr(fs->proto);
                 Proto_update_ins(
-                    fs->proto,
-                    jump_else,
-                    INS_FROM_OP_ABCD(Opcode::JUMP_IF_FALSE, ins_nr));
+                    fs->proto, jump_else, INS_BUILD(JUMP_IF_FALSE, ins_nr));
 
                 if (has_else) {
                     embed_stmt_block(fs);
                     ins_nr = Proto_ins_nr(fs->proto);
 
-                    Proto_update_ins(fs->proto,
-                                     jump_end,
-                                     INS_FROM_OP_ABCD(Opcode::JUMP, ins_nr));
+                    Proto_update_ins(
+                        fs->proto, jump_end, INS_BUILD(JUMP, ins_nr));
                 }
             } else if (token->token == ';') {
                 next(fs->ls);
@@ -953,12 +950,10 @@ static StmtResult stmt(FuncState* fs)
                 cond = ensure_at_top(fs, cond);
                 auto jemp_end = emit(fs, 0, 0);
                 embed_stmt_block(fs);
-                emit(fs, INS_FROM_OP_ABCD(Opcode::JUMP, cond_label), 0);
+                emit(fs, INS_BUILD(JUMP, cond_label), 0);
                 auto end_label = Proto_ins_nr(fs->proto);
                 Proto_update_ins(
-                    fs->proto,
-                    jemp_end,
-                    INS_FROM_OP_ABCD(Opcode::JUMP_IF_FALSE, end_label));
+                    fs->proto, jemp_end, INS_BUILD(JUMP_IF_FALSE, end_label));
                 break;
             }
 

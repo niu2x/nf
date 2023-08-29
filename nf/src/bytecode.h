@@ -10,6 +10,7 @@ enum class InsType : uint16_t {
     NO_ARGS,
     AB,
     AB_CD,
+    ABCD,
     AB_CD_EF,
 };
 
@@ -20,8 +21,8 @@ enum class InsType : uint16_t {
         (CONST)(AB_CD))((LOAD_NIL)(AB))((PUSH)(AB_CD))((SET)(AB_CD))(          \
         (NEW_TABLE)(AB))((TABLE_GET)(AB_CD_EF))((TABLE_SET)(AB_CD))(           \
         (LEN)(AB_CD))((NEG)(AB_CD))((NEW_NF_FUNC)(AB))((GET_UP_VALUE)(AB_CD))( \
-        (SET_UP_VALUE)(AB_CD))((CLOSE_UV_TO)(AB))((JUMP)(NO_ARGS))(            \
-        (JUMP_IF_FALSE)(NO_ARGS))((POP_TO)(NO_ARGS))((CALL)(NO_ARGS))
+        (SET_UP_VALUE)(AB_CD))((CLOSE_UV_TO)(AB))((JUMP)(ABCD))(               \
+        (JUMP_IF_FALSE)(ABCD))((POP_TO)(NO_ARGS))((CALL)(NO_ARGS))
 
 #define VISIT_ALL_INS(visitor)                                                 \
     visitor(visitor, RET_0, "RET_0", NO_ARGS)                                  \
@@ -96,6 +97,15 @@ public:
     static Instruction build(uint16_t ab, uint16_t cd)
     {
         return INS_FROM_OP_AB_CD(OPCODE, ab, cd);
+    }
+};
+
+template <uint16_t OPCODE>
+class InsBuilder<OPCODE, (uint16_t)(InsType::ABCD)> {
+public:
+    static Instruction build(uint32_t abcd)
+    {
+        return INS_FROM_OP_ABCD(OPCODE, abcd);
     }
 };
 
