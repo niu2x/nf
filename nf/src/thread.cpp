@@ -677,10 +677,14 @@ static int __Thread_run(Thread* self)
                 break;
             }
             case Opcode::NEW_NF_FUNC: {
-                auto proto = tv2proto(self->top - 1);
+                auto slot = (StackIndex)INS_AB(ins);
+                auto tv = stack_slot(self, slot);
+                auto proto = tv2proto(tv);
                 auto func = Func_new(self, proto);
-                self->top--;
-                Thread_push_func(self, func);
+                *tv = {
+                    .type = Type::Func,
+                    .obj = func,
+                };
                 break;
             }
             case Opcode::GET_UP_VALUE: {

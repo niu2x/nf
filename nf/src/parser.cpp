@@ -551,7 +551,8 @@ static SingleValue function(FuncState* parent_fs)
 
     TValue tv_proto = { .type = Type::Proto, .obj = fs.proto };
     emit_const(parent_fs, &tv_proto);
-    emit(parent_fs, INS_FROM_OP_NO_ARGS(Opcode::NEW_NF_FUNC), 0);
+    emit(
+        parent_fs, INS_BUILD(NEW_NF_FUNC, parent_fs->proto->used_slots - 1), 0);
     return SINGLE_NORMAL_VALUE_AT_TOP(parent_fs, false);
 }
 
@@ -786,9 +787,10 @@ static SingleValue call_or_table_access(FuncState* fs,
                 emit(fs, INS_BUILD(PUSH, args[i], fs->proto->used_slots), 1);
             }
 
+            int desired_retvals = 1;
             emit(fs,
-                 INS_FROM_OP_AB_CD(Opcode::CALL, first.index, 1),
-                 -args_nr - 1 + 1);
+                 INS_FROM_OP_AB_CD(Opcode::CALL, first.index, desired_retvals),
+                 -args_nr - 1 + desired_retvals);
             first = SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
 
         } else if (token == '[') {
