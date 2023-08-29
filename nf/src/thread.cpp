@@ -1,6 +1,7 @@
 #include <setjmp.h>
 #include <stdio.h>
 #include <string.h>
+#include <cmath>
 
 #include "object.h"
 #include "api.h"
@@ -289,44 +290,74 @@ static void __Thread_return(Thread* self,
     self->base = Thread_pop_index(self) + self->stack;
     self->pc = Thread_pop_pc(self);
     self->func = self->func->prev;
-    self->top = self->base + normalize_stack_index(self, called_func);
+    // self->top = self->base + normalize_stack_index(self, called_func);
 
-    for (int i = 0; i < retn; i++)
-        self->top[i] = return_value_base[i];
+    for (int i = 0; i < std::min(retn, desire_retvals_nr); i++)
+        self->base[called_func + i] = return_value_base[i];
     self->retvals_nr = retn;
-    self->top += retn;
+    // self->top += retn;
 
     if (retn < desire_retvals_nr) {
         for (auto i = retn; i < desire_retvals_nr; i++) {
-            Thread_push_nil(self);
+            self->base[called_func + i] = nil;
         }
-    } else
-        self->top -= (retn - desire_retvals_nr);
+    } else {
+        // self->top -= (retn - desire_retvals_nr);
+    }
 
     __Thread_close_uv(self, 0);
 }
 
 static void Thread_call(Thread* self,
                         StackIndex func_i,
+                        StackIndex args_nr,
                         StackIndex desire_retvals_nr);
 
-#define FIX_TOP(th, result_slot)                                               \
-    {                                                                          \
-        while (th->top - 1 - th->base < result_slot)                           \
-            Thread_push_nil(th);                                               \
-    }
+#define FIX_TOP(th, result_slot)
 
 static int __Thread_run(Thread* self)
 {
     while (self->pc) {
         Instruction ins = *(self->pc++);
         if (self->debug) {
-            printf("run(%ld, %ld) %s %d %d \n",
+            printf("run(%ld, %ld) %s",
                    self->top - self->base,
                    self->top - self->stack,
-                   opcode_names[(int)(INS_OP(ins))],
-                   (int)(INS_AB(ins)),
-                   (int)(INS_CD(ins)));
+                   // self->stack, self->base, self->top,
+                   opcode_names[(int)(INS_OP(ins))]);
+
+            switch (INS_TYPE(ins)) {
+                case InsType::NO_ARGS: {
+                    break;
+                }
+                case InsType::AB: {
+                    printf(" %d", (int32_t)INS_AB(ins));
+                    break;
+                }
+                case InsType::AB_CD: {
+                    printf(
+                        " %d %d", (int32_t)INS_AB(ins), (int32_t)INS_CD(ins));
+                    break;
+                }
+                case InsType::ABCD: {
+                    printf(" %d", (int32_t)INS_ABCD(ins));
+                    break;
+                }
+                case InsType::AB_CDEF: {
+                    printf(
+                        " %d %d", (int32_t)INS_AB(ins), (int32_t)INS_CDEF(ins));
+                    break;
+                }
+                case InsType::AB_CD_EF: {
+                    printf(" %d %d %d",
+                           (int32_t)INS_AB(ins),
+                           (int32_t)INS_CD(ins),
+                           (int32_t)INS_EF(ins));
+                    break;
+                }
+            }
+
+            printf("\n");
         }
 
         switch (INS_OP(ins)) {
@@ -615,13 +646,12 @@ static int __Thread_run(Thread* self)
             }
 
             case Opcode::TABLE_SET: {
-                TValue* value = self->top - 1;
                 auto table_slot = (StackIndex)INS_AB(ins);
                 auto key_slot = (StackIndex)INS_CD(ins);
+                auto v_slot = (StackIndex)INS_EF(ins);
                 auto key = stack_slot(self, key_slot);
                 auto table = tv2table(stack_slot(self, table_slot));
-                *Table_set(self, table, key) = *value;
-                self->top -= 1;
+                *Table_set(self, table, key) = *stack_slot(self, v_slot);
                 break;
             }
 
@@ -672,8 +702,9 @@ static int __Thread_run(Thread* self)
 
             case Opcode::CALL: {
                 auto slot = (StackIndex)INS_AB(ins);
-                auto desire_retvals_nr = (StackIndex)INS_CD(ins);
-                Thread_call(self, slot, desire_retvals_nr);
+                auto args_nr = (StackIndex)INS_CD(ins);
+                auto desire_retvals_nr = (StackIndex)INS_EF(ins);
+                Thread_call(self, slot, args_nr, desire_retvals_nr);
                 break;
             }
             case Opcode::NEW_NF_FUNC: {
@@ -735,10 +766,10 @@ static int __Thread_run(Thread* self)
             }
 
             case Opcode::JUMP_IF_FALSE: {
-                auto cond = self->top - 1;
+                auto cond = stack_slot(self, (StackIndex)INS_AB(ins));
                 if (cond->type == Type::NIL
                     || (cond->type == Type::Bool && cond->b == false)) {
-                    InsIndex target = (InsIndex)INS_ABCD(ins);
+                    InsIndex target = (InsIndex)INS_CDEF(ins);
                     self->pc = self->func->proto->ins + target;
                 }
 
@@ -767,11 +798,13 @@ static int __Thread_run(Thread* self)
 
 static void Thread_call(Thread* self,
                         StackIndex func_i,
+                        StackIndex args_nr,
                         StackIndex desire_retvals_nr)
 {
+    func_i = normalize_stack_index(self, func_i);
+
     auto tv_func = stack_slot(self, func_i);
     auto args = tv_func + 1;
-    StackIndex args_nr = self->top - args;
 
     Thread_push_pc(self, self->pc);
     Thread_push_index(self, self->base - self->stack);
@@ -789,7 +822,9 @@ static void Thread_call(Thread* self,
         desire_args_nr = func->proto->args_nr;
     }
 
-    for (int i = 0; i < args_nr; i++) {
+    // auto backup_top = self->top - self->stack;
+    // auto backup_base = self->base - self->stack;
+    for (int i = 0; i < std::min(args_nr, desire_args_nr); i++) {
         Thread_push(self, args++);
     }
 
@@ -798,8 +833,18 @@ static void Thread_call(Thread* self,
             Thread_push_nil(self);
         }
     } else {
-        self->top -= (args_nr - desire_args_nr);
+        // self->top -= (args_nr - desire_args_nr);
     }
+
+    if (func->func_type == FuncType::NF) {
+        for (StackIndex i = desire_args_nr; i < func->proto->max_used_slots;
+             i++) {
+            Thread_push_nil(self);
+        }
+    }
+
+    // self->top = self->stack + backup_top;
+    // self->base = self->stack + backup_base;
 
     StackIndex retn = 0;
 
@@ -832,7 +877,7 @@ void Thread_run(Thread* self, const char* code)
 {
     auto err = Thread_load(self, code, strlen(code), "no_name");
     if (E::OK == err) {
-        Thread_call(self, -1, 0);
+        Thread_call(self, -1, 0, 0);
     } else {
         Thread_throw(self, err);
     }
@@ -868,7 +913,7 @@ void Thread_run(Thread* self, FILE* fp)
     load.fp = fp;
     auto err = Thread_load(self, FILE_read, &load, "stdin");
     if (E::OK == err) {
-        Thread_call(self, -1, 0);
+        Thread_call(self, -1, 0, 0);
     } else {
         Thread_throw(self, err);
     }
@@ -892,9 +937,16 @@ void Thread_push(Thread* self, const TValue* tv)
 {
     NF_CHECK(self, self->stack_nr + 1 <= MAX_STACK_NR, "stack overflow");
     if (self->stack_nr <= (self->top - self->stack)) {
+
+        auto backup_top = self->top - self->stack;
+        auto backup_base = self->base - self->stack;
+
         self->stack = NF_REALLOC_ARRAY_P(
             self, self->stack, TValue, self->stack_nr * 3 / 2 + 16);
         self->stack_nr = self->stack_nr * 3 / 2 + 16;
+
+        self->top = self->stack + backup_top;
+        self->base = self->stack + backup_base;
     }
     *(self->top++) = *tv;
 }

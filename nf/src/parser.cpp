@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <ctype.h>
+#include <cmath>
 
 #include "api.h"
 #include "zio.h"
@@ -386,15 +387,20 @@ static InsIndex emit(FuncState* fs, Instruction ins, int slots_changed)
 {
     auto ii = Proto_append_ins(fs->ls->th, fs->proto, ins);
     fs->proto->used_slots += slots_changed;
+    fs->proto->max_used_slots = std::max(fs->proto->max_used_slots,
+                                         fs->proto->used_slots);
     return ii;
 }
 
-static InsIndex emit_pop_to(FuncState* fs, StackIndex new_top)
+static void emit_pop_to(FuncState* fs, StackIndex new_top)
 {
-    auto ins = INS_FROM_OP_AB(Opcode::POP_TO, new_top);
-    auto ii = emit(fs, ins, 0);
+    // auto ins = INS_FROM_OP_AB(Opcode::POP_TO, new_top);
+    // auto ii = emit(fs, ins, 0);
     fs->proto->used_slots = new_top;
-    return ii;
+    fs->proto->max_used_slots = std::max(fs->proto->max_used_slots,
+                                         fs->proto->used_slots);
+
+    // return ii;
 }
 
 static void emit_const(FuncState* fs, TValue* c)
@@ -605,9 +611,9 @@ static void assignemnt(FuncState* fs,
         emit(fs, ins, 0);
 
     } else if (left_value->type == SingleValueType::TABLE_SLOT) {
-        second = ensure_at_top(fs, second);
+        // second = ensure_at_top(fs, second);
         auto ins = INS_BUILD(
-            TABLE_SET, left_value->index, left_value->extras[0]);
+            TABLE_SET, left_value->index, left_value->extras[0], second.index);
         emit(fs, ins, -1);
     } else if (left_value->type == SingleValueType::UP_VALUE) {
         auto ins = INS_BUILD(SET_UP_VALUE, left_value->uv_index, second.index);
@@ -790,7 +796,7 @@ static SingleValue call_or_table_access(FuncState* fs,
 
             int desired_retvals = 1;
             emit(fs,
-                 INS_FROM_OP_AB_CD(Opcode::CALL, first.index, desired_retvals),
+                 INS_BUILD(CALL, first.index, args_nr, desired_retvals),
                  -args_nr - 1 + desired_retvals);
             first = SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
 
@@ -851,7 +857,7 @@ static void stmt_local(FuncState* fs)
 
         auto v = expr(fs, operations_order);
         v = ensure_normal_value(fs, v);
-        auto ins = INS_FROM_OP_AB_CD(Opcode::SET, slot, v.index);
+        auto ins = INS_BUILD(SET, slot, v.index);
         emit(fs, ins, 0);
     }
 
@@ -907,7 +913,6 @@ static StmtResult stmt(FuncState* fs)
                 auto cond = expr(fs, operations_order);
                 expect(fs->ls, ')');
                 cond = ensure_normal_value(fs, cond);
-                cond = ensure_at_top(fs, cond);
 
                 auto jump_else = emit(fs, 0, 0);
                 embed_stmt_block(fs);
@@ -918,8 +923,9 @@ static StmtResult stmt(FuncState* fs)
                 }
 
                 auto ins_nr = Proto_ins_nr(fs->proto);
-                Proto_update_ins(
-                    fs->proto, jump_else, INS_BUILD(JUMP_IF_FALSE, ins_nr));
+                Proto_update_ins(fs->proto,
+                                 jump_else,
+                                 INS_BUILD(JUMP_IF_FALSE, cond.index, ins_nr));
 
                 if (has_else) {
                     embed_stmt_block(fs);
@@ -947,13 +953,14 @@ static StmtResult stmt(FuncState* fs)
                 auto cond = expr(fs, operations_order);
                 expect(fs->ls, ')');
                 cond = ensure_normal_value(fs, cond);
-                cond = ensure_at_top(fs, cond);
                 auto jemp_end = emit(fs, 0, 0);
                 embed_stmt_block(fs);
                 emit(fs, INS_BUILD(JUMP, cond_label), 0);
                 auto end_label = Proto_ins_nr(fs->proto);
                 Proto_update_ins(
-                    fs->proto, jemp_end, INS_BUILD(JUMP_IF_FALSE, end_label));
+                    fs->proto,
+                    jemp_end,
+                    INS_BUILD(JUMP_IF_FALSE, cond.index, end_label));
                 break;
             }
 
@@ -997,6 +1004,9 @@ static void enter_scope(FuncState* fs, Scope* scope)
 static void exit_scope(FuncState* fs)
 {
     fs->proto->used_slots = fs->scope->parent_used_slots;
+    fs->proto->max_used_slots = std::max(fs->proto->max_used_slots,
+                                         fs->proto->used_slots);
+
     fs->scope = fs->scope->parent;
     fs->proto->scope = fs->scope;
 }
@@ -1031,6 +1041,8 @@ static void single_stmt_chunk(FuncState* fs)
     fs->proto->scope = fs->scope;
 
     fs->proto->used_slots = scope.parent_used_slots;
+    fs->proto->max_used_slots = std::max(fs->proto->max_used_slots,
+                                         fs->proto->used_slots);
 }
 
 static void single_stmt_block(FuncState* fs)

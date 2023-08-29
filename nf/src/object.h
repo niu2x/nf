@@ -122,6 +122,7 @@ struct Proto : Object {
     InsIndex ins_alloc;
 
     StackIndex used_slots;
+    StackIndex max_used_slots;
 
     uint32_t up_values[MAX_UV_NR];
     StackIndex up_values_nr;

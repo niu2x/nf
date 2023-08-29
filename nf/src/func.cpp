@@ -52,6 +52,7 @@ Proto* Proto_new(Thread* th)
     proto->const_alloc = 0;
 
     proto->used_slots = 0;
+    proto->max_used_slots = 0;
 
     proto->name = nullptr;
     proto->args_nr = 0;
