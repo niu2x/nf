@@ -19,10 +19,10 @@ enum class InsType : uint16_t {
         (GE)(AB_CD_EF))((NE)(AB_CD_EF))((LESS)(AB_CD_EF))((GREATE)(AB_CD_EF))( \
         (CONST)(AB_CD))((LOAD_NIL)(AB))((PUSH)(AB_CD))((SET)(AB_CD))(          \
         (NEW_TABLE)(AB))((TABLE_GET)(AB_CD_EF))((TABLE_SET)(AB_CD))(           \
-        (LEN)(AB_CD))((NEG)(NO_ARGS))((CALL)(NO_ARGS))(                        \
-        (NEW_NF_FUNC)(NO_ARGS))((GET_UP_VALUE)(NO_ARGS))(                      \
-        (SET_UP_VALUE)(NO_ARGS))((CLOSE_UV_TO)(NO_ARGS))((JUMP)(NO_ARGS))(     \
-        (JUMP_IF_FALSE)(NO_ARGS))((POP_TO)(NO_ARGS))
+        (LEN)(AB_CD))((NEG)(AB_CD))((CALL)(NO_ARGS))((NEW_NF_FUNC)(NO_ARGS))(  \
+        (GET_UP_VALUE)(NO_ARGS))((SET_UP_VALUE)(NO_ARGS))(                     \
+        (CLOSE_UV_TO)(NO_ARGS))((JUMP)(NO_ARGS))((JUMP_IF_FALSE)(NO_ARGS))(    \
+        (POP_TO)(NO_ARGS))
 
 #define VISIT_ALL_INS(visitor)                                                 \
     visitor(visitor, RET_0, "RET_0", NO_ARGS)                                  \

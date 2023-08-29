@@ -625,33 +625,6 @@ static int __Thread_run(Thread* self)
                 break;
             }
 
-            case Opcode::POP_TO: {
-
-                auto new_top = (StackIndex)INS_AB(ins);
-                self->top = new_top + self->base;
-
-                break;
-            }
-
-            case Opcode::NEG: {
-                auto v = (StackIndex)INS_AB(ins) + self->base;
-                TValue result = *v;
-                switch (v->type) {
-                    case Type::Integer: {
-                        result.i = -v->i;
-                        break;
-                    }
-                    case Type::Number: {
-                        result.n = -v->n;
-                        break;
-                    }
-                    default: {
-                        Thread_throw(self, E::OP_NUM, "unsupport neg");
-                    }
-                }
-                Thread_push(self, &result);
-                break;
-            }
             case Opcode::LEN: {
                 auto v_slot = (StackIndex)INS_AB(ins);
                 auto result_slot = (StackIndex)INS_CD(ins);
@@ -671,6 +644,32 @@ static int __Thread_run(Thread* self)
                 }
                 break;
             }
+
+            case Opcode::NEG: {
+
+                auto v_slot = (StackIndex)INS_AB(ins);
+                auto result_slot = (StackIndex)INS_CD(ins);
+                auto v = stack_slot(self, v_slot);
+                auto result = stack_slot(self, result_slot);
+                FIX_TOP(self, result_slot);
+
+                *result = *v;
+                switch (v->type) {
+                    case Type::Integer: {
+                        result->i = -v->i;
+                        break;
+                    }
+                    case Type::Number: {
+                        result->n = -v->n;
+                        break;
+                    }
+                    default: {
+                        Thread_throw(self, E::OP_NUM, "unsupport neg");
+                    }
+                }
+                break;
+            }
+
             case Opcode::CALL: {
                 auto slot = (StackIndex)INS_AB(ins);
                 auto desire_retvals_nr = (StackIndex)INS_CD(ins);
@@ -734,6 +733,14 @@ static int __Thread_run(Thread* self)
                     InsIndex target = (InsIndex)INS_ABCD(ins);
                     self->pc = self->func->proto->ins + target;
                 }
+
+                break;
+            }
+
+            case Opcode::POP_TO: {
+
+                auto new_top = (StackIndex)INS_AB(ins);
+                self->top = new_top + self->base;
 
                 break;
             }

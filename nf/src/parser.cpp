@@ -721,7 +721,9 @@ static SingleValue uni_op(FuncState* fs, const OperationRule* rule)
 
             switch (target_op) {
                 case '-': {
-                    emit(fs, INS_FROM_OP_AB(Opcode::NEG, first.index), 1);
+                    emit(fs,
+                         INS_BUILD(NEG, first.index, fs->proto->used_slots),
+                         1);
                     first = SINGLE_NORMAL_VALUE_AT_TOP(fs, false);
 
                     break;
