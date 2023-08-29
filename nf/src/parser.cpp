@@ -603,8 +603,8 @@ static void assignemnt(FuncState* fs,
 
     } else if (left_value->type == SingleValueType::TABLE_SLOT) {
         second = ensure_at_top(fs, second);
-        auto ins = INS_FROM_OP_AB_CD(
-            Opcode::TABLE_SET, left_value->index, left_value->extras[0]);
+        auto ins = INS_BUILD(
+            TABLE_SET, left_value->index, left_value->extras[0]);
         emit(fs, ins, -1);
     } else if (left_value->type == SingleValueType::UP_VALUE) {
         auto ins = INS_FROM_OP_AB_CD(
