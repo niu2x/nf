@@ -394,13 +394,9 @@ static InsIndex emit(FuncState* fs, Instruction ins, int slots_changed)
 
 static void emit_pop_to(FuncState* fs, StackIndex new_top)
 {
-    // auto ins = INS_FROM_OP_AB(Opcode::POP_TO, new_top);
-    // auto ii = emit(fs, ins, 0);
     fs->proto->used_slots = new_top;
     fs->proto->max_used_slots = std::max(fs->proto->max_used_slots,
                                          fs->proto->used_slots);
-
-    // return ii;
 }
 
 static void emit_const(FuncState* fs, TValue* c)

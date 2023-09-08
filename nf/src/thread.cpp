@@ -290,19 +290,15 @@ static void __Thread_return(Thread* self,
     self->base = Thread_pop_index(self) + self->stack;
     self->pc = Thread_pop_pc(self);
     self->func = self->func->prev;
-    // self->top = self->base + normalize_stack_index(self, called_func);
 
     for (int i = 0; i < std::min(retn, desire_retvals_nr); i++)
         self->base[called_func + i] = return_value_base[i];
     self->retvals_nr = retn;
-    // self->top += retn;
 
     if (retn < desire_retvals_nr) {
         for (auto i = retn; i < desire_retvals_nr; i++) {
             self->base[called_func + i] = nil;
         }
-    } else {
-        // self->top -= (retn - desire_retvals_nr);
     }
 
     __Thread_close_uv(self, 0);
@@ -313,17 +309,17 @@ static void Thread_call(Thread* self,
                         StackIndex args_nr,
                         StackIndex desire_retvals_nr);
 
-#define FIX_TOP(th, result_slot)
-
 static int __Thread_run(Thread* self)
 {
-    while (self->pc) {
+    int retvals_nr = 0;
+    bool should_return = false;
+
+    while (!should_return) {
         Instruction ins = *(self->pc++);
         if (self->debug) {
             printf("run(%ld, %ld) %s",
                    self->top - self->base,
                    self->top - self->stack,
-                   // self->stack, self->base, self->top,
                    opcode_names[(int)(INS_OP(ins))]);
 
             switch (INS_TYPE(ins)) {
@@ -362,18 +358,21 @@ static int __Thread_run(Thread* self)
 
         switch (INS_OP(ins)) {
             case Opcode::RET_0: {
-                return 0;
+                retvals_nr = 0;
+                should_return = true;
+                break;
             }
 
             case Opcode::RET_TOP: {
-                return 1;
+                retvals_nr = 1;
+                should_return = true;
+                break;
             }
 
             case Opcode::ADD: {
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
                 StackIndex result_slot = INS_EF(ins);
-                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -399,8 +398,6 @@ static int __Thread_run(Thread* self)
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
 
-                FIX_TOP(self, result_slot);
-
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
                 if (is_numberic(first) && is_numberic(second)) {
@@ -415,8 +412,6 @@ static int __Thread_run(Thread* self)
                 StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
-
-                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -433,8 +428,6 @@ static int __Thread_run(Thread* self)
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
 
-                FIX_TOP(self, result_slot);
-
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
                 if (is_numberic(first) && is_numberic(second)) {
@@ -449,8 +442,6 @@ static int __Thread_run(Thread* self)
                 StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
-
-                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -474,8 +465,6 @@ static int __Thread_run(Thread* self)
                 StackIndex result_slot = INS_EF(ins);
                 StackIndex second_slot = INS_CD(ins);
 
-                FIX_TOP(self, result_slot);
-
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
                 if (is_numberic(first) && is_numberic(second)) {
@@ -497,8 +486,6 @@ static int __Thread_run(Thread* self)
                 StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
-
-                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -522,8 +509,6 @@ static int __Thread_run(Thread* self)
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
 
-                FIX_TOP(self, result_slot);
-
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
                 if (is_numberic(first) && is_numberic(second)) {
@@ -545,7 +530,6 @@ static int __Thread_run(Thread* self)
                 StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
-                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -568,7 +552,6 @@ static int __Thread_run(Thread* self)
                 StackIndex result_slot = INS_EF(ins);
                 StackIndex first_slot = INS_AB(ins);
                 StackIndex second_slot = INS_CD(ins);
-                FIX_TOP(self, result_slot);
 
                 TValue* first = stack_slot(self, first_slot);
                 TValue* second = stack_slot(self, second_slot);
@@ -590,7 +573,6 @@ static int __Thread_run(Thread* self)
             case Opcode::CONST: {
                 auto const_index = (StackIndex)INS_AB(ins);
                 StackIndex result_slot = INS_CD(ins);
-                FIX_TOP(self, result_slot);
                 *stack_slot(self, result_slot)
                     = self->func->proto->const_arr[const_index];
                 break;
@@ -598,7 +580,6 @@ static int __Thread_run(Thread* self)
 
             case Opcode::LOAD_NIL: {
                 StackIndex result_slot = INS_AB(ins);
-                FIX_TOP(self, result_slot);
                 *stack_slot(self, result_slot) = { .type = Type::NIL, .n = 0 };
                 break;
             }
@@ -606,7 +587,6 @@ static int __Thread_run(Thread* self)
             case Opcode::PUSH: {
                 auto slot = (StackIndex)INS_AB(ins);
                 StackIndex result_slot = INS_CD(ins);
-                FIX_TOP(self, result_slot);
                 *stack_slot(self, result_slot) = *stack_slot(self, slot);
                 break;
             }
@@ -620,7 +600,6 @@ static int __Thread_run(Thread* self)
 
             case Opcode::NEW_TABLE: {
                 StackIndex result_slot = INS_AB(ins);
-                FIX_TOP(self, result_slot);
                 auto table = Table_new(self);
                 *stack_slot(self, result_slot) = { .type = Type::Table,
                                                    .obj = table };
@@ -629,8 +608,6 @@ static int __Thread_run(Thread* self)
 
             case Opcode::TABLE_GET: {
                 StackIndex result_slot = INS_EF(ins);
-                FIX_TOP(self, result_slot);
-
                 auto slot = (StackIndex)INS_AB(ins);
                 auto table = tv2table(stack_slot(self, slot));
 
@@ -660,8 +637,6 @@ static int __Thread_run(Thread* self)
                 auto result_slot = (StackIndex)INS_CD(ins);
                 auto v = stack_slot(self, v_slot);
                 auto result = stack_slot(self, result_slot);
-                FIX_TOP(self, result_slot);
-
                 *result = { .type = Type::Integer, .i = 0 };
                 switch (v->type) {
                     case Type::String: {
@@ -681,7 +656,6 @@ static int __Thread_run(Thread* self)
                 auto result_slot = (StackIndex)INS_CD(ins);
                 auto v = stack_slot(self, v_slot);
                 auto result = stack_slot(self, result_slot);
-                FIX_TOP(self, result_slot);
 
                 *result = *v;
                 switch (v->type) {
@@ -724,7 +698,6 @@ static int __Thread_run(Thread* self)
 
                 auto result_slot = (StackIndex)INS_CD(ins);
                 auto result = stack_slot(self, result_slot);
-                FIX_TOP(self, result_slot);
 
                 if (uv->closed) {
                     *result = uv->value;
@@ -792,8 +765,7 @@ static int __Thread_run(Thread* self)
             }
         }
     }
-    // NEVER REACH
-    return 0;
+    return retvals_nr;
 }
 
 static void Thread_call(Thread* self,
@@ -822,8 +794,6 @@ static void Thread_call(Thread* self,
         desire_args_nr = func->proto->args_nr;
     }
 
-    // auto backup_top = self->top - self->stack;
-    // auto backup_base = self->base - self->stack;
     for (int i = 0; i < std::min(args_nr, desire_args_nr); i++) {
         Thread_push(self, args++);
     }
@@ -832,8 +802,6 @@ static void Thread_call(Thread* self,
         for (int i = args_nr; i < desire_args_nr; i++) {
             Thread_push_nil(self);
         }
-    } else {
-        // self->top -= (args_nr - desire_args_nr);
     }
 
     if (func->func_type == FuncType::NF) {
@@ -842,9 +810,6 @@ static void Thread_call(Thread* self,
             Thread_push_nil(self);
         }
     }
-
-    // self->top = self->stack + backup_top;
-    // self->base = self->stack + backup_base;
 
     StackIndex retn = 0;
 
