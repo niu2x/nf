@@ -790,6 +790,7 @@ static void Thread_call(Thread* self,
     self->func = func;
 
     auto desire_args_nr = args_nr;
+
     if (func->func_type == FuncType::NF) {
         desire_args_nr = func->proto->args_nr;
     }
@@ -804,7 +805,8 @@ static void Thread_call(Thread* self,
         }
     }
 
-    if (func->func_type == FuncType::NF) {
+    bool pre_alloc_stack = func->func_type == FuncType::NF;
+    if (pre_alloc_stack) {
         for (StackIndex i = desire_args_nr; i < func->proto->max_used_slots;
              i++) {
             Thread_push_nil(self);
