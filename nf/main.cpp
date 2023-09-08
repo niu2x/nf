@@ -13,6 +13,9 @@ static cxxopts::Options build_command_args_parser()
     options.add_options()("v,version", "display version");
     options.add_options()("h,help", "display help");
     options.add_options()("debug", "debug");
+    options.add_options()(
+        "f,file", "script file pathname", cxxopts::value<std::string>());
+    options.parse_positional({ "file" });
     return options;
 }
 
@@ -58,8 +61,21 @@ int main(int argc, char* argv[])
     auto th = nf::open();
     nf::set_debug(th, opt_debug);
 
-    nf::run(th, stdin);
-    nf::close(th);
+    int exit_code = 0;
 
-    return 0;
+    if (cmd_args.count("file")) {
+        auto filepath = cmd_args["file"].as<std::string>();
+        FILE* fp = fopen(filepath.c_str(), "rb");
+        if (fp) {
+            nf::run(th, fp);
+            fclose(fp);
+        } else {
+            std::cerr << "can not open " << filepath << std::endl;
+            exit_code = 1;
+        }
+    } else {
+        nf::run(th, stdin);
+    }
+    nf::close(th);
+    return exit_code;
 }
