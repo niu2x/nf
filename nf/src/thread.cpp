@@ -8,6 +8,7 @@
 #include "utils.h"
 #include "zio.h"
 #include "bytecode.h"
+#include "istty.h"
 
 namespace nf::imp {
 
@@ -874,7 +875,7 @@ static const char* FILE_read(Thread* th, void* ud, size_t* size)
     return loadf->buf.base;
 }
 
-void Thread_run(Thread* self, FILE* fp)
+static void __Thread_run_FILE(Thread* self, FILE* fp)
 {
     LoadFile load;
     load.fp = fp;
@@ -883,6 +884,21 @@ void Thread_run(Thread* self, FILE* fp)
         Thread_call(self, -1, 0, 0);
     } else {
         Thread_throw(self, err);
+    }
+}
+
+static void __Thread_run_interactive(Thread* self)
+{
+    (void)self;
+    printf("TODO: __Thread_run_interactive\n");
+}
+
+void Thread_run(Thread* self, FILE* fp)
+{
+    if (istty(fp)) {
+        __Thread_run_interactive(self);
+    } else {
+        __Thread_run_FILE(self, fp);
     }
 }
 

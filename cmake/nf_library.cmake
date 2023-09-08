@@ -13,6 +13,7 @@ configure_file(include/nf/config.h.in include/nf/config.h @ONLY)
 target_include_directories(${LIB_NAME} PRIVATE
     src
     ${boost_include}
+    ../3rd/
 )
 
 target_include_directories(${LIB_NAME} PUBLIC
